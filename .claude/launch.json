@@ -4,7 +4,7 @@
     {
       "name": "osiris-web",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["gcash-intelligence/server.js"],
+      "runtimeArgs": ["server.js"],
       "port": 3000
     }
   ]

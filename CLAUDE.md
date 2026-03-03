@@ -11,7 +11,7 @@ Cross-industry visual design intelligence for **GCash** redesign. Collects UI sc
 - **Puppeteer + Cheerio + Sharp + node-fetch** — scraping & image processing
 
 ## Working Directory
-All work in `/Users/jpdguzman/Documents/Dev/osiris/gcash-intelligence/`. No git repo.
+`/Users/jpdguzman/Documents/Dev/osiris/`
 
 ## Architecture (3 Layers)
 
