@@ -295,16 +295,8 @@ const app = new Ractive({
 
       // Helpers exposed to templates
       formatCost: function (v) { return v != null ? v.toFixed(2) : '0.00'; },
-      scoreClass: function (v) {
-        if (v >= 7) return 'high';
-        if (v >= 4) return 'mid';
-        return 'low';
-      },
-      similarityClass: function (pct) {
-        if (pct >= 85) return 'high';
-        if (pct >= 70) return 'mid';
-        return 'low';
-      },
+      scoreClass: scoreClass,
+      similarityClass: similarityClass,
       simPct: function (v) {
         return Math.round(v * 100);
       },
@@ -430,6 +422,20 @@ const app = new Ractive({
         }
       }
     });
+  },
+
+  // ── Shared Helpers ──────────────────────────────────────────────────
+
+  _toggleCardSelection: function (id, setKey, modeKey) {
+    const selected = new Set(this.get(setKey));
+    selected.has(id) ? selected.delete(id) : selected.add(id);
+    this.set(setKey, selected);
+    this.set(modeKey, selected.size > 0);
+  },
+
+  _debouncedLoadScatter: function () {
+    clearTimeout(this._scatterDebounce);
+    this._scatterDebounce = setTimeout(() => this.loadScatter(), 150);
   },
 
   navigate: function (path) {
@@ -889,12 +895,12 @@ const app = new Ractive({
     if (idx >= 0) { list.splice(idx, 1); delete sel[id]; }
     else { list.push(id); sel[id] = true; }
     this.set({ scatterIndustries: list, scatterSelected: sel });
-    this.loadScatter();
+    this._debouncedLoadScatter();
   },
 
   clearScatterIndustries: function () {
     this.set({ scatterIndustries: [], scatterSelected: {} });
-    this.loadScatter();
+    this._debouncedLoadScatter();
   },
 
   scatterIndustryLabel: function () {
@@ -918,12 +924,12 @@ const app = new Ractive({
     if (idx >= 0) { list.splice(idx, 1); delete sel[type]; }
     else { list.push(type); sel[type] = true; }
     this.set({ scatterScreenTypes: list, scatterScreenTypeSelected: sel });
-    this.loadScatter();
+    this._debouncedLoadScatter();
   },
 
   clearScatterScreenTypes: function () {
     this.set({ scatterScreenTypes: [], scatterScreenTypeSelected: {} });
-    this.loadScatter();
+    this._debouncedLoadScatter();
   },
 
   scatterScreenTypeLabel: function () {
@@ -994,10 +1000,7 @@ const app = new Ractive({
   handleClusterCardClick: function (id, event) {
     if (event.original.shiftKey) {
       event.original.stopPropagation();
-      const selected = new Set(this.get('clusterSelectedIds'));
-      selected.has(id) ? selected.delete(id) : selected.add(id);
-      this.set('clusterSelectedIds', selected);
-      this.set('clusterSelectMode', selected.size > 0);
+      this._toggleCardSelection(id, 'clusterSelectedIds', 'clusterSelectMode');
       return;
     }
     this.openScreen(id);
@@ -1019,10 +1022,7 @@ const app = new Ractive({
   handleCardClick: function (id, event) {
     if (event.original.shiftKey) {
       event.original.stopPropagation();
-      const selected = new Set(this.get('selectedScreenIds'));
-      selected.has(id) ? selected.delete(id) : selected.add(id);
-      this.set('selectedScreenIds', selected);
-      this.set('isSelectMode', selected.size > 0);
+      this._toggleCardSelection(id, 'selectedScreenIds', 'isSelectMode');
       return;
     }
     this.openScreen(id);
@@ -1223,10 +1223,7 @@ const app = new Ractive({
   handleBucketCardClick: function (id, event) {
     if (event.original.shiftKey) {
       event.original.stopPropagation();
-      const selected = new Set(this.get('bucketSelectedIds'));
-      selected.has(id) ? selected.delete(id) : selected.add(id);
-      this.set('bucketSelectedIds', selected);
-      this.set('bucketSelectMode', selected.size > 0);
+      this._toggleCardSelection(id, 'bucketSelectedIds', 'bucketSelectMode');
       return;
     }
     this.openScreen(id);
@@ -1404,10 +1401,7 @@ const app = new Ractive({
   handleSimilarCardClick: function (id, event) {
     if (event.original.shiftKey) {
       event.original.stopPropagation();
-      const selected = new Set(this.get('similarSelectedIds'));
-      selected.has(id) ? selected.delete(id) : selected.add(id);
-      this.set('similarSelectedIds', selected);
-      this.set('similarSelectMode', selected.size > 0);
+      this._toggleCardSelection(id, 'similarSelectedIds', 'similarSelectMode');
       return;
     }
     this.openScreen(id);
@@ -1518,19 +1512,9 @@ const app = new Ractive({
   },
 
   handleDiscoverCardClick: function (id, event) {
-    if (event.original.shiftKey) {
-      event.original.stopPropagation();
-      const selected = new Set(this.get('bucketDiscoverSelectedIds'));
-      selected.has(id) ? selected.delete(id) : selected.add(id);
-      this.set('bucketDiscoverSelectedIds', selected);
-      this.set('bucketDiscoverSelectMode', selected.size > 0);
-      return;
-    }
-    // Toggle selection on regular click too (since these are candidates)
-    const selected = new Set(this.get('bucketDiscoverSelectedIds'));
-    selected.has(id) ? selected.delete(id) : selected.add(id);
-    this.set('bucketDiscoverSelectedIds', selected);
-    this.set('bucketDiscoverSelectMode', selected.size > 0);
+    if (event.original.shiftKey) event.original.stopPropagation();
+    // Toggle selection on any click (since these are candidates)
+    this._toggleCardSelection(id, 'bucketDiscoverSelectedIds', 'bucketDiscoverSelectMode');
   },
 
   clearDiscoverSelection: function () {

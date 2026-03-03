@@ -3,7 +3,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import sharp from 'sharp';
-import { logInfo, logSuccess, logError, logDim, logProgress, ensureDirs, PATHS } from '../src/utils.js';
+import { logInfo, logSuccess, logError, logDim, logProgress, ensureDirs, PATHS, loadIndustries } from '../src/utils.js';
 
 const CROP_DIR = path.join(PATHS.data, 'patterns', 'crops');
 
@@ -23,11 +23,7 @@ async function main() {
   console.log('║   GCash Intelligence — Component Crop Processor          ║');
   console.log('╚══════════════════════════════════════════════════════════╝\n');
 
-  const config = await fs.readJson(path.join(PATHS.config, 'industries.json'));
-  const industries = config.industries.map(i => i.id);
-  if (await fs.pathExists(path.join(PATHS.patterns, 'gcash_current'))) {
-    industries.push('gcash_current');
-  }
+  const industries = await loadIndustries(null, PATHS.patterns);
 
   let totalCropped = 0;
   let totalSkipped = 0;

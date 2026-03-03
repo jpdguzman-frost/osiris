@@ -3,7 +3,7 @@
 import dotenv from 'dotenv';
 dotenv.config({ override: true });
 import { Store } from '../src/store.js';
-import { logInfo, logError, PATHS } from '../src/utils.js';
+import { logInfo, logError, PATHS, loadIndustries, IMAGE_EXT_RE } from '../src/utils.js';
 import fs from 'fs-extra';
 import path from 'path';
 
@@ -14,14 +14,7 @@ async function main() {
 
   // Local file stats
   console.log('── Local Files ──────────────────────────────────\n');
-  const config = await fs.readJson(path.join(PATHS.config, 'industries.json'));
-  const industries = config.industries.map(i => i.id);
-
-  for (const special of ['gcash_current', 'curated']) {
-    if (await fs.pathExists(path.join(PATHS.screens, special))) {
-      if (!industries.includes(special)) industries.push(special);
-    }
-  }
+  const industries = await loadIndustries();
 
   let totalScreens = 0;
   let totalAnalyzed = 0;
@@ -31,7 +24,7 @@ async function main() {
     const analysisDir = path.join(PATHS.analysis, id);
 
     const screens = await fs.pathExists(screensDir)
-      ? (await fs.readdir(screensDir)).filter(f => /\.(jpg|jpeg|png|gif|webp)$/i.test(f)).length
+      ? (await fs.readdir(screensDir)).filter(f => IMAGE_EXT_RE.test(f)).length
       : 0;
     const analyzed = await fs.pathExists(analysisDir)
       ? (await fs.readdir(analysisDir)).filter(f => f.endsWith('.json')).length

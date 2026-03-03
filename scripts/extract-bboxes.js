@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config({ override: true });
 import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs-extra';
 import path from 'path';
@@ -8,10 +9,10 @@ import sharp from 'sharp';
 import {
   logInfo, logSuccess, logWarn, logError, logDim, logProgress,
   CostTracker, resizeForVision, mimeFromExt, sleep, ensureDirs,
-  promisePool, PATHS,
+  promisePool, PATHS, parseFlags, loadIndustries, parseJsonResponse, CLAUDE_MODEL,
 } from '../src/utils.js';
 
-const MODEL = 'claude-sonnet-4-5-20250929';
+const MODEL = CLAUDE_MODEL;
 const MAX_TOKENS = 4096;
 const CONCURRENCY = 2;
 const MAX_RETRIES = 3;
@@ -19,22 +20,7 @@ const INITIAL_BACKOFF = 5000;
 const MAX_BACKOFF = 60_000;
 const CROP_DIR = path.join(PATHS.patterns, 'crops');
 
-// ─── Parse CLI Args ───────────────────────────────────────────────────────────
-
-const args = process.argv.slice(2);
-const flags = {};
-for (const arg of args) {
-  if (arg.startsWith('--')) {
-    const [key, val] = arg.slice(2).split('=');
-    flags[key] = val || true;
-  }
-}
-
-const industryFilter = flags.industry
-  ? flags.industry.split(',').map(s => s.trim())
-  : null;
-
-const sampleMode = flags.sample === true;
+const { flags, industryFilter } = parseFlags();
 const cropOnly = flags['crop-only'] === true;
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -52,16 +38,7 @@ async function main() {
     process.exit(1);
   }
 
-  const config = await fs.readJson(path.join(PATHS.config, 'industries.json'));
-  let industries = config.industries.map(i => i.id);
-  for (const special of ['gcash_current', 'curated']) {
-    if (await fs.pathExists(path.join(PATHS.patterns, special))) {
-      if (!industries.includes(special)) industries.push(special);
-    }
-  }
-  if (industryFilter) {
-    industries = industries.filter(id => industryFilter.includes(id));
-  }
+  const industries = await loadIndustries(industryFilter, PATHS.patterns);
 
   if (cropOnly) {
     logInfo('Crop-only mode: generating crops from existing bounding boxes');
@@ -83,12 +60,8 @@ async function main() {
     const files = (await fs.readdir(patternsDir)).filter(f => f.endsWith('.json'));
     logInfo(`${industryId}: ${files.length} screens to process`);
 
-    // In sample mode, just do the first one
-    const toProcess = sampleMode ? files.slice(0, 1) : files;
-    if (sampleMode) logWarn('Sample mode: processing 1 screen only');
-
-    await promisePool(toProcess, CONCURRENCY, async (file, idx) => {
-      logProgress(idx + 1, toProcess.length, file.slice(0, 40));
+    await promisePool(files, CONCURRENCY, async (file, idx) => {
+      logProgress(idx + 1, files.length, file.slice(0, 40));
 
       try {
         const dataPath = path.join(patternsDir, file);
@@ -97,7 +70,7 @@ async function main() {
         // Skip if bboxes already extracted (either via this script or inline from pattern extractor)
         const components = data.extraction?.components || [];
         const allHaveBbox = components.length > 0 && components.every(c => c.bbox);
-        if ((data.bboxes_extracted || allHaveBbox) && !sampleMode) {
+        if (data.bboxes_extracted || allHaveBbox) {
           totalSkipped++;
           return;
         }
@@ -131,15 +104,6 @@ async function main() {
           data.bboxes_extracted_at = new Date().toISOString();
           await fs.writeJson(dataPath, data, { spaces: 2 });
           totalProcessed++;
-
-          if (sampleMode) {
-            logInfo('\n--- SAMPLE RESULT ---');
-            components.forEach((c, i) => {
-              console.log(`  ${i}: ${c.label}`);
-              console.log(`     bbox: ${JSON.stringify(c.bbox)}`);
-            });
-            logInfo('--- END SAMPLE ---\n');
-          }
         } else {
           totalErrors++;
         }
@@ -155,16 +119,9 @@ async function main() {
   logInfo(`Processed: ${totalProcessed}, Skipped: ${totalSkipped}, Errors: ${totalErrors}`);
 
   // Now crop
-  if (!sampleMode) {
-    logInfo('Generating crops from bounding boxes...');
-    for (const industryId of industries) {
-      await cropFromBboxes(industryId);
-    }
-  } else {
-    // Crop sample too
-    for (const industryId of industries) {
-      await cropFromBboxes(industryId);
-    }
+  logInfo('Generating crops from bounding boxes...');
+  for (const industryId of industries) {
+    await cropFromBboxes(industryId);
   }
 
   logSuccess('Done');
@@ -244,17 +201,7 @@ IMPORTANT:
       logDim(`  ${screenId}: $${callCost.toFixed(4)}`);
 
       const text = response.content[0]?.text || '';
-      let bboxes;
-      try {
-        bboxes = JSON.parse(text);
-      } catch {
-        const jsonMatch = text.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          bboxes = JSON.parse(jsonMatch[0]);
-        } else {
-          throw new Error('Invalid JSON response');
-        }
-      }
+      const bboxes = parseJsonResponse(text, 'array');
 
       if (!Array.isArray(bboxes)) throw new Error('Response is not an array');
 

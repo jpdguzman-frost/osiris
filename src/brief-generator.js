@@ -4,10 +4,10 @@ import path from 'path';
 import { Store } from './store.js';
 import {
   logInfo, logSuccess, logError, logDim,
-  CostTracker, ensureDirs, PATHS,
+  CostTracker, ensureDirs, PATHS, CLAUDE_MODEL, parseJsonResponse,
 } from './utils.js';
 
-const MODEL = 'claude-sonnet-4-5-20250929';
+const MODEL = CLAUDE_MODEL;
 const MAX_TOKENS = 8192;
 
 // ─── Brief Generator Class ───────────────────────────────────────────────────

@@ -3,23 +3,9 @@
 import dotenv from 'dotenv';
 dotenv.config({ override: true });
 import { Store } from '../src/store.js';
-import { logInfo, logSuccess, logError } from '../src/utils.js';
+import { logInfo, logSuccess, logError, parseFlags, SCORE_FIELDS } from '../src/utils.js';
 
-const args = process.argv.slice(2);
-const flags = {};
-for (const arg of args) {
-  if (arg.startsWith('--')) {
-    const [key, val] = arg.slice(2).split('=');
-    flags[key] = val || true;
-  }
-}
-
-// Score fields that support --{field}-min=N
-const SCORE_FIELDS = [
-  'color_restraint', 'hierarchy_clarity', 'glanceability', 'density',
-  'whitespace_ratio', 'brand_confidence', 'calm_confident', 'bold_forward',
-  'overall_quality',
-];
+const { flags } = parseFlags();
 
 async function main() {
   console.log('\n╔══════════════════════════════════════════════════╗');
@@ -47,7 +33,7 @@ async function main() {
 
     // Parse score minimums (e.g., --calm-confident-min=7)
     const minScores = {};
-    for (const field of SCORE_FIELDS) {
+    for (const field of SCORE_FIELDS.core) {
       const flagKey = field.replace(/_/g, '-') + '-min';
       if (flags[flagKey]) {
         minScores[field] = parseFloat(flags[flagKey]);

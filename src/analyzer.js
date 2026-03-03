@@ -1,14 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs-extra';
 import path from 'path';
-import sharp from 'sharp';
 import {
   log, logInfo, logSuccess, logWarn, logError, logDim, logProgress,
   CostTracker, resizeForVision, mimeFromExt, sleep, ensureDirs,
-  promisePool, PATHS,
+  promisePool, PATHS, CLAUDE_MODEL, IMAGE_EXT_RE, parseJsonResponse,
+  loadIndustryObjects,
 } from './utils.js';
 
-const MODEL = 'claude-sonnet-4-5-20250929';
+const MODEL = CLAUDE_MODEL;
 const MAX_TOKENS = 1500;
 const CONCURRENCY = 5;
 const MAX_RETRIES = 3;
@@ -50,23 +50,7 @@ export class Analyzer {
     await this.loadRubric();
     await this.loadVocabularies();
 
-    const config = await fs.readJson(path.join(PATHS.config, 'industries.json'));
-    const industries = industryIds
-      ? config.industries.filter(i => industryIds.includes(i.id))
-      : config.industries;
-
-    // Also include special folders if they exist
-    for (const special of [
-      { id: 'gcash_current', name: 'GCash Current State' },
-      { id: 'curated', name: 'Curated References' },
-    ]) {
-      const dir = path.join(PATHS.screens, special.id);
-      if (await fs.pathExists(dir) && (!industryIds || industryIds.includes(special.id))) {
-        if (!industries.find(i => i.id === special.id)) {
-          industries.push(special);
-        }
-      }
-    }
+    const industries = await loadIndustryObjects(industryIds);
 
     logInfo(`Analyzing screens for ${industries.length} industries`);
 
@@ -97,7 +81,7 @@ export class Analyzer {
 
     // Get all image files
     const files = (await fs.readdir(screensDir))
-      .filter(f => /\.(jpg|jpeg|png|gif|webp)$/i.test(f));
+      .filter(f => IMAGE_EXT_RE.test(f));
 
     // Check which are already analyzed (resume support)
     const toAnalyze = [];
@@ -224,18 +208,7 @@ export class Analyzer {
 
         // Parse JSON response
         const text = response.content[0]?.text || '';
-        let analysis;
-        try {
-          analysis = JSON.parse(text);
-        } catch {
-          // Try to extract JSON from response (sometimes wrapped in markdown fences)
-          const jsonMatch = text.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            analysis = JSON.parse(jsonMatch[0]);
-          } else {
-            throw new Error('Invalid JSON response');
-          }
-        }
+        const analysis = parseJsonResponse(text);
 
         // Validate required fields
         if (!analysis.scores || typeof analysis.scores.overall_quality !== 'number') {
@@ -322,8 +295,7 @@ export class Analyzer {
             });
 
             const retryText = retryResponse.content[0]?.text || '';
-            const jsonMatch = retryText.match(/\{[\s\S]*\}/);
-            const analysis = JSON.parse(jsonMatch ? jsonMatch[0] : retryText);
+            const analysis = parseJsonResponse(retryText);
             return { analysis, cost: 0, duration: Date.now() - startTime, tokens: {} };
           } catch {
             // Fall through to backoff retry
@@ -368,7 +340,7 @@ export class Analyzer {
       if (!await fs.pathExists(screensDir)) continue;
 
       const screens = (await fs.readdir(screensDir))
-        .filter(f => /\.(jpg|jpeg|png|gif|webp)$/i.test(f));
+        .filter(f => IMAGE_EXT_RE.test(f));
       totalScreens += screens.length;
 
       if (await fs.pathExists(analysisDir)) {
@@ -382,7 +354,7 @@ export class Analyzer {
     const gcashDir = path.join(PATHS.screens, 'gcash_current');
     if (await fs.pathExists(gcashDir)) {
       const gcashScreens = (await fs.readdir(gcashDir))
-        .filter(f => /\.(jpg|jpeg|png|gif|webp)$/i.test(f));
+        .filter(f => IMAGE_EXT_RE.test(f));
       totalScreens += gcashScreens.length;
     }
 

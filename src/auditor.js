@@ -5,10 +5,10 @@ import { Analyzer } from './analyzer.js';
 import { Store } from './store.js';
 import {
   logInfo, logSuccess, logWarn, logError, logDim,
-  CostTracker, ensureDirs, PATHS,
+  CostTracker, ensureDirs, PATHS, CLAUDE_MODEL, IMAGE_EXT_RE, parseJsonResponse,
 } from './utils.js';
 
-const MODEL = 'claude-sonnet-4-5-20250929';
+const MODEL = CLAUDE_MODEL;
 const MAX_TOKENS = 8192;
 
 // ─── Auditor Class ────────────────────────────────────────────────────────────
@@ -32,7 +32,7 @@ export class Auditor {
     }
 
     const files = (await fs.readdir(gcashScreensDir))
-      .filter(f => /\.(jpg|jpeg|png|gif|webp)$/i.test(f));
+      .filter(f => IMAGE_EXT_RE.test(f));
 
     if (files.length === 0) {
       logWarn('gcash_current directory is empty');
@@ -47,9 +47,8 @@ export class Auditor {
     const analyzeResult = await analyzer.analyzeIndustry('gcash_current');
     logSuccess(`Individual analysis: ${analyzeResult.analyzed} new, ${analyzeResult.skipped} existing`);
 
-    // Step 2: Ingest to MongoDB
+    // Step 2: Connect to MongoDB (ingest done separately via scripts/ingest.js)
     await this.store.connect();
-    await this.store.ingestAnalysis(['gcash_current']);
 
     // Step 3: Load cross-industry synthesis
     const synthesisPath = path.join(PATHS.synthesis, 'cross_industry_synthesis.json');
@@ -62,7 +61,8 @@ export class Auditor {
 
     // Step 4: Holistic audit pass
     logInfo('Running holistic GCash audit');
-    const gcashData = await this.store.exportForSynthesis('gcash_current');
+    const allGcashScreens = await this.store.exportForSynthesis('gcash_current');
+    const gcashData = allGcashScreens;
 
     const audit = await this.runHolisticAudit(gcashData, crossIndustry);
 
@@ -150,8 +150,7 @@ Output as JSON:
 
     const text = response.content[0]?.text || '';
     try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      return JSON.parse(jsonMatch ? jsonMatch[0] : text);
+      return parseJsonResponse(text);
     } catch {
       logError('Failed to parse audit response');
       return { raw: text };

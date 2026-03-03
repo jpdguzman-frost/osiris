@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config({ override: true });
 import { Analyzer } from '../src/analyzer.js';
 import { logInfo, logSuccess, logWarn } from '../src/utils.js';
 import readline from 'readline';

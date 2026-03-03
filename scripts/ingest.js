@@ -6,20 +6,9 @@ import fs from 'fs-extra';
 import path from 'path';
 import { Store } from '../src/store.js';
 import { scoresToVector } from '../src/similarity.js';
-import { logInfo, logSuccess, logWarn, logError, logProgress, PATHS } from '../src/utils.js';
+import { logInfo, logSuccess, logWarn, logError, logProgress, PATHS, parseFlags, loadIndustries } from '../src/utils.js';
 
-const args = process.argv.slice(2);
-const flags = {};
-for (const arg of args) {
-  if (arg.startsWith('--')) {
-    const [key, val] = arg.slice(2).split('=');
-    flags[key] = val || true;
-  }
-}
-
-const industryFilter = flags.industry
-  ? flags.industry.split(',').map(s => s.trim())
-  : null;
+const { flags, industryFilter } = parseFlags();
 
 async function main() {
   console.log('\n╔══════════════════════════════════════════════════╗');
@@ -32,19 +21,7 @@ async function main() {
     await store.connect();
 
     // Discover industry directories
-    const config = await fs.readJson(path.join(PATHS.config, 'industries.json'));
-    let industries = config.industries.map(i => i.id);
-
-    // Add special folders
-    for (const special of ['gcash_current', 'curated']) {
-      if (await fs.pathExists(path.join(PATHS.analysis, special))) {
-        if (!industries.includes(special)) industries.push(special);
-      }
-    }
-
-    if (industryFilter) {
-      industries = industries.filter(id => industryFilter.includes(id));
-    }
+    const industries = await loadIndustries(industryFilter, PATHS.analysis);
 
     if (industryFilter) {
       logInfo(`Industries: ${industryFilter.join(', ')}`);

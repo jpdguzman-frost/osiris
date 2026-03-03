@@ -199,3 +199,92 @@ export const PATHS = {
   patterns: path.join(ROOT, 'data', 'patterns'),
   outputPatternLibrary: path.join(ROOT, 'output', 'pattern-library'),
 };
+
+// ─── Shared Constants ────────────────────────────────────────────────────────
+
+export const CLAUDE_MODEL = 'claude-sonnet-4-5-20250929';
+
+export const IMAGE_EXT_RE = /\.(jpg|jpeg|png|gif|webp)$/i;
+
+export const SCORE_FIELDS = {
+  core: [
+    'color_restraint', 'hierarchy_clarity', 'glanceability', 'density',
+    'whitespace_ratio', 'brand_confidence', 'calm_confident', 'bold_forward',
+    'overall_quality',
+  ],
+  spectrum: [
+    'calm_energetic', 'confident_tentative', 'forward_conservative',
+    'premium_accessible', 'warm_clinical',
+  ],
+};
+
+// ─── CLI Argument Parser ─────────────────────────────────────────────────────
+
+export function parseFlags() {
+  const args = process.argv.slice(2);
+  const flags = {};
+  for (const arg of args) {
+    if (arg.startsWith('--')) {
+      const [key, val] = arg.slice(2).split('=');
+      flags[key] = val || true;
+    }
+  }
+
+  const industryFilter = flags.industry
+    ? flags.industry.split(',').map(s => s.trim())
+    : null;
+
+  return { flags, industryFilter };
+}
+
+// ─── Industry Discovery ──────────────────────────────────────────────────────
+
+const SPECIAL_FOLDERS = ['gcash_current', 'curated'];
+
+export async function loadIndustries(industryFilter = null, baseDir = PATHS.screens) {
+  const config = await fs.readJson(path.join(PATHS.config, 'industries.json'));
+  let industries = config.industries.map(i => i.id);
+
+  for (const special of SPECIAL_FOLDERS) {
+    if (await fs.pathExists(path.join(baseDir, special))) {
+      if (!industries.includes(special)) industries.push(special);
+    }
+  }
+
+  if (industryFilter) {
+    industries = industries.filter(id => industryFilter.includes(id));
+  }
+
+  return industries;
+}
+
+export async function loadIndustryObjects(industryFilter = null, baseDir = PATHS.screens) {
+  const config = await fs.readJson(path.join(PATHS.config, 'industries.json'));
+  let industries = industryFilter
+    ? config.industries.filter(i => industryFilter.includes(i.id))
+    : [...config.industries];
+
+  for (const special of SPECIAL_FOLDERS) {
+    const dir = path.join(baseDir, special);
+    if (await fs.pathExists(dir) && (!industryFilter || industryFilter.includes(special))) {
+      if (!industries.find(i => i.id === special)) {
+        industries.push({ id: special, name: special.replace(/_/g, ' ') });
+      }
+    }
+  }
+
+  return industries;
+}
+
+// ─── JSON Response Parsing ───────────────────────────────────────────────────
+
+export function parseJsonResponse(text, shape = 'object') {
+  try {
+    return JSON.parse(text);
+  } catch {
+    const re = shape === 'array' ? /\[[\s\S]*\]/ : /\{[\s\S]*\}/;
+    const match = text.match(re);
+    if (match) return JSON.parse(match[0]);
+    throw new Error('Invalid JSON response');
+  }
+}

@@ -4,16 +4,9 @@ import dotenv from 'dotenv';
 dotenv.config({ override: true });
 import { Store } from '../src/store.js';
 import { findSimilar, textSearch, WEIGHT_PRESETS } from '../src/similarity.js';
-import { logInfo, logSuccess, logError } from '../src/utils.js';
+import { logInfo, logSuccess, logError, parseFlags } from '../src/utils.js';
 
-const args = process.argv.slice(2);
-const flags = {};
-for (const arg of args) {
-  if (arg.startsWith('--')) {
-    const [key, val] = arg.slice(2).split('=');
-    flags[key] = val || true;
-  }
-}
+const { flags } = parseFlags();
 
 async function main() {
   console.log('\n╔══════════════════════════════════════════════════╗');

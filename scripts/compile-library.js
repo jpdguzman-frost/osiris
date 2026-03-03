@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config({ override: true });
 import { LibraryCompiler } from '../src/library-compiler.js';
 import { logError } from '../src/utils.js';
 

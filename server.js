@@ -3,14 +3,14 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs-extra';
 import dotenv from 'dotenv';
+import Anthropic from '@anthropic-ai/sdk';
 import { Store } from './src/store.js';
-import { PATHS } from './src/utils.js';
+import { PATHS, CLAUDE_MODEL, SCORE_FIELDS as SCORE_FIELD_LISTS } from './src/utils.js';
 import { findSimilar, WEIGHT_PRESETS } from './src/similarity.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-dotenv.config({ path: path.join(PATHS.config, '.env'), override: true });
-dotenv.config({ path: path.join(__dirname, '.env') });
+dotenv.config({ path: path.join(__dirname, '.env'), override: true });
 
 const PORT = process.env.PORT || 3000;
 const BASE_PATH = process.env.BASE_PATH || '';
@@ -25,22 +25,10 @@ const screenUrl = (industry, filePath) => `${BASE_PATH}/screens/${industry}/${fi
 const industriesConfig = await fs.readJson(path.join(PATHS.config, 'industries.json'));
 const vocabularies = await fs.readJson(path.join(PATHS.config, 'vocabularies.json'));
 
-const SCORE_FIELDS = {
-  overall_quality: [1, 10],
-  calm_confident: [1, 10],
-  bold_forward: [1, 10],
-  color_restraint: [1, 10],
-  hierarchy_clarity: [1, 10],
-  glanceability: [1, 10],
-  density: [1, 10],
-  whitespace_ratio: [1, 10],
-  brand_confidence: [1, 10],
-  calm_energetic: [-5, 5],
-  confident_tentative: [-5, 5],
-  forward_conservative: [-5, 5],
-  premium_accessible: [-5, 5],
-  warm_clinical: [-5, 5],
-};
+const SCORE_FIELDS = Object.fromEntries([
+  ...SCORE_FIELD_LISTS.core.map(f => [f, [1, 10]]),
+  ...SCORE_FIELD_LISTS.spectrum.map(f => [f, [-5, 5]]),
+]);
 
 // Connect to MongoDB
 await store.connect();
@@ -262,39 +250,47 @@ router.get('/api/scatter', async (req, res) => {
 // ─── API: Delete Screens ─────────────────────────────────────────────────────
 
 router.delete('/api/screens', async (req, res) => {
-  const ids = req.body?.ids;
-  if (!Array.isArray(ids) || ids.length === 0)
-    return res.status(400).json({ error: 'ids array required' });
+  try {
+    const ids = req.body?.ids;
+    if (!Array.isArray(ids) || ids.length === 0)
+      return res.status(400).json({ error: 'ids array required' });
 
-  const deleted = [];
-  const notFound = [];
+    const deleted = [];
+    const notFound = [];
 
-  for (const id of ids) {
-    const screen = await store.getScreen(id);
-    if (!screen) { notFound.push(id); continue; }
+    for (const id of ids) {
+      const screen = await store.getScreen(id);
+      if (!screen) { notFound.push(id); continue; }
 
-    const filePath = path.join(PATHS.screens, screen.industry, screen.file_path);
-    await fs.remove(filePath).catch(() => {});
-    await store.db.collection('screens').deleteOne({ screen_id: id });
-    deleted.push(id);
+      const filePath = path.join(PATHS.screens, screen.industry, screen.file_path);
+      await fs.remove(filePath).catch(() => {});
+      await store.db.collection('screens').deleteOne({ screen_id: id });
+      deleted.push(id);
+    }
+
+    res.json({ deleted, notFound });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  res.json({ deleted, notFound });
 });
 
 // ─── API: Reclassify Screens ─────────────────────────────────────────────────
 
 router.patch('/api/screens', async (req, res) => {
-  const { ids, screen_type } = req.body;
-  if (!Array.isArray(ids) || ids.length === 0 || !screen_type)
-    return res.status(400).json({ error: 'ids array and screen_type required' });
+  try {
+    const { ids, screen_type } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0 || !screen_type)
+      return res.status(400).json({ error: 'ids array and screen_type required' });
 
-  const result = await store.db.collection('screens').updateMany(
-    { screen_id: { $in: ids } },
-    { $set: { 'analysis.screen_type': screen_type } }
-  );
+    const result = await store.db.collection('screens').updateMany(
+      { screen_id: { $in: ids } },
+      { $set: { 'analysis.screen_type': screen_type } }
+    );
 
-  res.json({ updated: result.modifiedCount });
+    res.json({ updated: result.modifiedCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─── API: Buckets ───────────────────────────────────────────────────────────
@@ -516,10 +512,9 @@ router.post('/api/buckets/:id/generate-metadata', async (req, res) => {
       return `- ${s.screen_id} (${s.industry}): quality=${scores.overall_quality || '?'}, calm=${scores.calm_confident || '?'}, bold=${scores.bold_forward || '?'}, mood=${s.fingerprint?.design_mood || '?'}, tags=[${tags}], verdict: ${s.analysis?.verdict || 'none'}`;
     }).join('\n');
 
-    const { default: Anthropic } = await import('@anthropic-ai/sdk');
     const client = new Anthropic();
     const message = await client.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model: CLAUDE_MODEL,
       max_tokens: 2048,
       messages: [{
         role: 'user',

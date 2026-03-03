@@ -1,24 +1,11 @@
 #!/usr/bin/env node
 
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config({ override: true });
 import { PatternExtractor } from '../src/pattern-extractor.js';
-import { logInfo, logSuccess, logError, logWarn } from '../src/utils.js';
+import { logInfo, logSuccess, logError, logWarn, parseFlags } from '../src/utils.js';
 
-// ─── Parse CLI Args ───────────────────────────────────────────────────────────
-
-const args = process.argv.slice(2);
-const flags = {};
-for (const arg of args) {
-  if (arg.startsWith('--')) {
-    const [key, val] = arg.slice(2).split('=');
-    flags[key] = val || true;
-  }
-}
-
-const industryFilter = flags.industry
-  ? flags.industry.split(',').map(s => s.trim())
-  : null;
-
+const { flags, industryFilter } = parseFlags();
 const extractOnly = flags['extract-only'] === true;
 const cropOnly = flags['crop-only'] === true;
 const htmlOnly = flags['html-only'] === true;

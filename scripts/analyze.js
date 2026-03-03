@@ -3,23 +3,10 @@
 import dotenv from 'dotenv';
 dotenv.config({ override: true });
 import { Analyzer } from '../src/analyzer.js';
-import { logInfo, logError } from '../src/utils.js';
+import { logInfo, logError, parseFlags } from '../src/utils.js';
 
-const args = process.argv.slice(2);
-const flags = {};
-for (const arg of args) {
-  if (arg.startsWith('--')) {
-    const [key, val] = arg.slice(2).split('=');
-    flags[key] = val || true;
-  }
-}
-
-const industryFilter = flags.industry
-  ? flags.industry.split(',').map(s => s.trim())
-  : null;
-
+const { flags, industryFilter } = parseFlags();
 const concurrency = flags.concurrency ? parseInt(flags.concurrency, 10) : undefined;
-const source = flags.source || undefined;
 
 async function main() {
   console.log('\n╔══════════════════════════════════════════════════╗');

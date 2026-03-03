@@ -4,10 +4,10 @@ import path from 'path';
 import { Store } from './store.js';
 import {
   logInfo, logSuccess, logWarn, logError, logDim,
-  CostTracker, ensureDirs, PATHS,
+  CostTracker, ensureDirs, PATHS, CLAUDE_MODEL, parseJsonResponse,
 } from './utils.js';
 
-const MODEL = 'claude-sonnet-4-5-20250929';
+const MODEL = CLAUDE_MODEL;
 const MAX_TOKENS = 8192;
 
 // ─── Synthesizer Class ────────────────────────────────────────────────────────
@@ -54,7 +54,6 @@ export class Synthesizer {
     );
 
     // Store in MongoDB
-    await this.store.connect();
     const synthesis = this.store.db.collection('synthesis');
     for (const dim of dimensions) {
       await synthesis.updateOne(
@@ -165,8 +164,7 @@ Output as JSON:
 
     const text = response.content[0]?.text || '';
     try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      return JSON.parse(jsonMatch ? jsonMatch[0] : text);
+      return parseJsonResponse(text);
     } catch {
       logError(`  Failed to parse ${dimension} synthesis response`);
       return { dimension, raw: text };
@@ -182,9 +180,11 @@ Output as JSON:
       .sort((a, b) => (b.scores.calm_confident + b.scores.bold_forward) - (a.scores.calm_confident + a.scores.bold_forward))
       .slice(0, 30);
 
-    // Get all directly_applicable principles
-    const directPrinciples = await this.store.queryPrinciples({ transferability: 'directly_applicable' });
-    const adaptablePrinciples = await this.store.queryPrinciples({ transferability: 'adaptable' });
+    // Get principles from screen analyses
+    const allPrinciples = allScreens
+      .flatMap(s => (s.analysis?.principles_extracted || []).map(p => ({ ...p, industry: s.industry })));
+    const directPrinciples = allPrinciples.filter(p => p.transferability === 'directly_applicable');
+    const adaptablePrinciples = allPrinciples.filter(p => p.transferability === 'adaptable');
 
     const prompt = `You are the lead design strategist for a major fintech super-app redesign (GCash, Philippines, 94M users).
 
@@ -251,8 +251,7 @@ Output as JSON:
 
     const text = response.content[0]?.text || '';
     try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      return JSON.parse(jsonMatch ? jsonMatch[0] : text);
+      return parseJsonResponse(text);
     } catch {
       logError('Failed to parse cross-industry synthesis');
       return { raw: text };

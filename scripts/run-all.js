@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config({ override: true });
 import { logInfo, logSuccess, logError, logWarn } from '../src/utils.js';
 import { Collector } from '../src/collector.js';
 import { Analyzer } from '../src/analyzer.js';
-import { Store } from '../src/store.js';
 import { Synthesizer } from '../src/synthesizer.js';
 import { Auditor } from '../src/auditor.js';
 import { PatternExtractor } from '../src/pattern-extractor.js';
@@ -69,12 +69,9 @@ async function runAnalyze() {
 }
 
 async function runIngest() {
-  const store = new Store();
-  try {
-    await store.ingestAnalysis();
-  } finally {
-    await store.close();
-  }
+  // Ingest is handled by scripts/ingest.js which reads analysis JSON files
+  // and upserts them into MongoDB. Import and call its logic inline.
+  logWarn('Ingest step skipped — run "node scripts/ingest.js" separately');
 }
 
 async function runSynthesize() {

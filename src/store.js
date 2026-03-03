@@ -3,6 +3,19 @@ import { logSuccess, logWarn, logError, logDim } from './utils.js';
 
 const DB_NAME = 'osiris';
 
+const SCREEN_LIST_PROJECTION = {
+  screen_id: 1,
+  industry: 1,
+  source: 1,
+  file_path: 1,
+  'analysis.scores': 1,
+  'analysis.verdict': 1,
+  'analysis.screen_type': 1,
+  'analysis.platform': 1,
+  'analysis.color_palette': 1,
+  fingerprint: 1,
+};
+
 // ─── Store Class ──────────────────────────────────────────────────────────────
 
 export class Store {
@@ -132,6 +145,7 @@ export class Store {
       .find({ [field]: { $gte: minScore } })
       .sort({ [field]: -1 })
       .limit(limit)
+      .project(SCREEN_LIST_PROJECTION)
       .toArray();
   }
 
@@ -144,6 +158,7 @@ export class Store {
       })
       .sort({ 'analysis.scores.calm_confident': -1, 'analysis.scores.bold_forward': -1 })
       .limit(limit)
+      .project(SCREEN_LIST_PROJECTION)
       .toArray();
   }
 
@@ -159,18 +174,7 @@ export class Store {
         .sort(sort)
         .skip(skip)
         .limit(Math.min(limit, 100))
-        .project({
-          screen_id: 1,
-          industry: 1,
-          source: 1,
-          file_path: 1,
-          'analysis.scores': 1,
-          'analysis.verdict': 1,
-          'analysis.screen_type': 1,
-          'analysis.platform': 1,
-          'analysis.color_palette': 1,
-          fingerprint: 1,
-        })
+        .project(SCREEN_LIST_PROJECTION)
         .toArray(),
       collection.countDocuments(filter),
     ]);
@@ -209,13 +213,12 @@ export class Store {
 
     const limit = options.limit || 50;
 
-    const results = await this.db.collection('screens')
+    return this.db.collection('screens')
       .find(filter)
       .sort(sort)
       .limit(limit)
+      .project(SCREEN_LIST_PROJECTION)
       .toArray();
-
-    return results;
   }
 
   // ── Distillation Saves ──────────────────────────────────────────────────
@@ -298,30 +301,25 @@ export class Store {
   async addScreensToBucket(id, screenIds) {
     await this.connect();
     const col = this.db.collection('buckets');
+    const oid = new ObjectId(id);
     await col.updateOne(
-      { _id: new ObjectId(id) },
+      { _id: oid },
       { $addToSet: { screen_ids: { $each: screenIds } }, $set: { updated_at: new Date() } },
     );
-    // Sync count from actual array length
-    await col.updateOne(
-      { _id: new ObjectId(id) },
-      [{ $set: { count: { $size: '$screen_ids' } } }],
-    );
-    return col.findOne({ _id: new ObjectId(id) });
+    await col.updateOne({ _id: oid }, [{ $set: { count: { $size: '$screen_ids' } } }]);
+    return col.findOne({ _id: oid });
   }
 
   async removeScreensFromBucket(id, screenIds) {
     await this.connect();
     const col = this.db.collection('buckets');
+    const oid = new ObjectId(id);
     await col.updateOne(
-      { _id: new ObjectId(id) },
+      { _id: oid },
       { $pull: { screen_ids: { $in: screenIds } }, $set: { updated_at: new Date() } },
     );
-    await col.updateOne(
-      { _id: new ObjectId(id) },
-      [{ $set: { count: { $size: '$screen_ids' } } }],
-    );
-    return col.findOne({ _id: new ObjectId(id) });
+    await col.updateOne({ _id: oid }, [{ $set: { count: { $size: '$screen_ids' } } }]);
+    return col.findOne({ _id: oid });
   }
 
   async getBucketScreensPaginated(id, { sort = 'overall_quality', order = -1, page = 1, limit = 48 } = {}) {
@@ -339,18 +337,7 @@ export class Store {
         .sort(sortObj)
         .skip(skip)
         .limit(Math.min(limit, 100))
-        .project({
-          screen_id: 1,
-          industry: 1,
-          source: 1,
-          file_path: 1,
-          'analysis.scores': 1,
-          'analysis.verdict': 1,
-          'analysis.screen_type': 1,
-          'analysis.platform': 1,
-          'analysis.color_palette': 1,
-          fingerprint: 1,
-        })
+        .project(SCREEN_LIST_PROJECTION)
         .toArray(),
       this.db.collection('screens').countDocuments(filter),
     ]);
@@ -375,66 +362,99 @@ export class Store {
     );
   }
 
+  // ── Synthesis Helpers ──────────────────────────────────────────────────
+
+  async exportForSynthesis(industry = null) {
+    await this.connect();
+    const filter = industry ? { industry } : {};
+    return this.db.collection('screens')
+      .find(filter)
+      .project({
+        screen_id: 1,
+        industry: 1,
+        source: 1,
+        'analysis.scores': 1,
+        'analysis.verdict': 1,
+        'analysis.screen_type': 1,
+        'analysis.color_analysis': 1,
+        'analysis.typography_analysis': 1,
+        'analysis.spatial_analysis': 1,
+        'analysis.identity_signals': 1,
+        'analysis.principles_extracted': 1,
+      })
+      .toArray()
+      .then(docs => docs.map(d => ({
+        screen_id: d.screen_id,
+        industry: d.industry,
+        source: d.source,
+        scores: d.analysis?.scores || {},
+        analysis: d.analysis || {},
+      })));
+  }
+
   // ── Statistics ──────────────────────────────────────────────────────────
 
   async getStats() {
     await this.connect();
     const screens = this.db.collection('screens');
 
-    const totalCount = await screens.countDocuments();
-    const byIndustry = await screens.aggregate([
-      { $group: { _id: '$industry', count: { $sum: 1 } } },
-    ]).toArray();
-
-    const bySource = await screens.aggregate([
-      { $group: { _id: '$source', count: { $sum: 1 } } },
-    ]).toArray();
-
-    const withFingerprints = await screens.countDocuments({
-      'fingerprint.style_tags': { $exists: true, $ne: [] },
-    });
-
-    const withVisualFeatures = await screens.countDocuments({
-      visual_features: { $ne: null },
-    });
-
-    // Score averages by industry
     const scoreFields = [
       'color_restraint', 'hierarchy_clarity', 'glanceability', 'density',
       'whitespace_ratio', 'brand_confidence', 'calm_confident', 'bold_forward',
       'overall_quality',
     ];
 
-    const averages = {};
-    for (const field of scoreFields) {
-      const result = await screens.aggregate([
-        { $group: {
-          _id: '$industry',
-          avg: { $avg: `$analysis.scores.${field}` },
-          min: { $min: `$analysis.scores.${field}` },
-          max: { $max: `$analysis.scores.${field}` },
-        }},
-      ]).toArray();
-      averages[field] = result;
+    // Build $group stage for all score averages in one pass
+    const avgGroup = { _id: '$industry' };
+    for (const f of scoreFields) {
+      avgGroup[`${f}_avg`] = { $avg: `$analysis.scores.${f}` };
+      avgGroup[`${f}_min`] = { $min: `$analysis.scores.${f}` };
+      avgGroup[`${f}_max`] = { $max: `$analysis.scores.${f}` };
     }
 
-    // Total cost
-    const costResult = await screens.aggregate([
-      { $group: { _id: null, totalCost: { $sum: '$cost' } } },
-    ]).toArray();
-    const totalCost = costResult[0]?.totalCost || 0;
+    // Single $facet replaces 13 sequential roundtrips
+    const [facetResult, distillationCount] = await Promise.all([
+      screens.aggregate([{
+        $facet: {
+          total: [{ $count: 'count' }],
+          byIndustry: [{ $group: { _id: '$industry', count: { $sum: 1 } } }],
+          bySource: [{ $group: { _id: '$source', count: { $sum: 1 } } }],
+          withFingerprints: [
+            { $match: { 'fingerprint.style_tags': { $exists: true, $ne: [] } } },
+            { $count: 'count' },
+          ],
+          withVisualFeatures: [
+            { $match: { visual_features: { $ne: null } } },
+            { $count: 'count' },
+          ],
+          totalCost: [{ $group: { _id: null, totalCost: { $sum: '$cost' } } }],
+          averages: [{ $group: avgGroup }],
+        },
+      }]).toArray(),
+      this.db.collection('distillations').countDocuments(),
+    ]);
 
-    // Distillation count
-    const distillationCount = await this.db.collection('distillations').countDocuments();
+    const f = facetResult[0];
+
+    // Reshape averages from combined group into per-field arrays
+    const averages = {};
+    for (const field of scoreFields) {
+      averages[field] = f.averages.map(r => ({
+        _id: r._id,
+        avg: r[`${field}_avg`],
+        min: r[`${field}_min`],
+        max: r[`${field}_max`],
+      }));
+    }
 
     return {
-      totalScreens: totalCount,
-      byIndustry: Object.fromEntries(byIndustry.map(r => [r._id, r.count])),
-      bySource: Object.fromEntries(bySource.map(r => [r._id, r.count])),
-      withFingerprints,
-      withVisualFeatures,
+      totalScreens: f.total[0]?.count || 0,
+      byIndustry: Object.fromEntries(f.byIndustry.map(r => [r._id, r.count])),
+      bySource: Object.fromEntries(f.bySource.map(r => [r._id, r.count])),
+      withFingerprints: f.withFingerprints[0]?.count || 0,
+      withVisualFeatures: f.withVisualFeatures[0]?.count || 0,
       averages,
-      totalCost,
+      totalCost: f.totalCost[0]?.totalCost || 0,
       distillationCount,
     };
   }

@@ -5,10 +5,11 @@ import { Store } from './store.js';
 import {
   log, logInfo, logSuccess, logWarn, logError, logDim, logProgress,
   CostTracker, resizeForVision, mimeFromExt, sleep, ensureDirs,
-  promisePool, PATHS,
+  promisePool, PATHS, CLAUDE_MODEL, IMAGE_EXT_RE, parseJsonResponse,
+  loadIndustryObjects, loadIndustries,
 } from './utils.js';
 
-const MODEL = 'claude-sonnet-4-5-20250929';
+const MODEL = CLAUDE_MODEL;
 const EXTRACT_MAX_TOKENS = 4096;
 const SYNTHESIS_MAX_TOKENS = 8192;
 const CONCURRENCY = 2;
@@ -116,23 +117,7 @@ export class PatternExtractor {
   // ── Phase 1: Per-Screen Extraction ────────────────────────────────────
 
   async extractAll(industryIds = null) {
-    const config = await fs.readJson(path.join(PATHS.config, 'industries.json'));
-    const industries = industryIds
-      ? config.industries.filter(i => industryIds.includes(i.id))
-      : config.industries;
-
-    // Include special folders if they exist
-    for (const special of [
-      { id: 'gcash_current', name: 'GCash Current State' },
-      { id: 'curated', name: 'Curated References' },
-    ]) {
-      const dir = path.join(PATHS.screens, special.id);
-      if (await fs.pathExists(dir) && (!industryIds || industryIds.includes(special.id))) {
-        if (!industries.find(i => i.id === special.id)) {
-          industries.push(special);
-        }
-      }
-    }
+    const industries = await loadIndustryObjects(industryIds);
 
     logInfo(`Extracting component patterns for ${industries.length} industries`);
 
@@ -160,7 +145,7 @@ export class PatternExtractor {
     }
 
     const files = (await fs.readdir(screensDir))
-      .filter(f => /\.(jpg|jpeg|png|gif|webp)$/i.test(f));
+      .filter(f => IMAGE_EXT_RE.test(f));
 
     // Resume support
     const toExtract = [];
@@ -280,17 +265,7 @@ export class PatternExtractor {
         logDim(`  ${screenId}: ${inputTokens}in/${outputTokens}out (${cachedTokens} cached) $${callCost.toFixed(4)} ${duration}ms`);
 
         const text = response.content[0]?.text || '';
-        let extraction;
-        try {
-          extraction = JSON.parse(text);
-        } catch {
-          const jsonMatch = text.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            extraction = JSON.parse(jsonMatch[0]);
-          } else {
-            throw new Error('Invalid JSON response');
-          }
-        }
+        const extraction = parseJsonResponse(text);
 
         if (!extraction.components || !Array.isArray(extraction.components)) {
           throw new Error('Missing components array in response');
@@ -335,19 +310,7 @@ export class PatternExtractor {
     const sharp = (await import('sharp')).default;
     const cropBase = path.join(PATHS.data, 'patterns', 'crops');
 
-    const config = await fs.readJson(path.join(PATHS.config, 'industries.json'));
-    let industries = config.industries.map(i => i.id);
-
-    // Include special folders
-    for (const special of ['gcash_current', 'curated']) {
-      if (await fs.pathExists(path.join(PATHS.patterns, special))) {
-        if (!industries.includes(special)) industries.push(special);
-      }
-    }
-
-    if (industryIds) {
-      industries = industries.filter(id => industryIds.includes(id));
-    }
+    let industries = await loadIndustries(industryIds, PATHS.patterns);
 
     let totalCropped = 0;
     let totalSkipped = 0;
@@ -437,86 +400,10 @@ export class PatternExtractor {
     logSuccess(`Cropped ${totalCropped} components (${totalSkipped} skipped, ${totalErrors} errors)`);
   }
 
-  // ── Phase 2b: Pattern Synthesis (run separately) ───────────────────────
-
-  async synthesizePatterns() {
-    logInfo('Starting pattern synthesis');
-
-    // Load all extracted patterns
-    const allComponents = await this.loadAllExtractedPatterns();
-    logInfo(`Loaded ${allComponents.length} components across all screens`);
-
-    if (allComponents.length === 0) {
-      logWarn('No extracted patterns found. Run extraction first.');
-      return;
-    }
-
-    await ensureDirs(PATHS.synthesis);
-
-    // Group by category
-    const byCategory = {};
-    for (const comp of allComponents) {
-      const cat = comp.category;
-      if (!byCategory[cat]) byCategory[cat] = [];
-      byCategory[cat].push(comp);
-    }
-
-    logInfo(`Categories found: ${Object.keys(byCategory).join(', ')}`);
-
-    // Synthesize each category
-    const allClusters = [];
-    for (const [category, components] of Object.entries(byCategory)) {
-      if (components.length < 2) {
-        logDim(`  Skipping ${category} — only ${components.length} component(s)`);
-        continue;
-      }
-
-      logInfo(`  Clustering: ${category} (${components.length} components)`);
-      const clusters = await this.synthesizeCategory(category, components);
-      if (clusters && clusters.length > 0) {
-        allClusters.push(...clusters);
-      }
-    }
-
-    // Cross-category synthesis
-    logInfo('  Synthesizing cross-category patterns');
-    const crossCategory = await this.synthesizeCrossCategory(allClusters, byCategory);
-
-    // Save results
-    await fs.writeJson(
-      path.join(PATHS.synthesis, 'pattern_clusters.json'),
-      allClusters,
-      { spaces: 2 },
-    );
-    await fs.writeJson(
-      path.join(PATHS.synthesis, 'pattern_library_summary.json'),
-      crossCategory,
-      { spaces: 2 },
-    );
-
-    // Ingest to MongoDB
-    await this.ingestToMongo(allComponents, allClusters, crossCategory);
-
-    logSuccess(`Synthesis complete: ${allClusters.length} pattern clusters identified`);
-    return { clusters: allClusters, summary: crossCategory };
-  }
-
   async loadAllExtractedPatterns(industryIds = null) {
     const allComponents = [];
 
-    const config = await fs.readJson(path.join(PATHS.config, 'industries.json'));
-    let industries = config.industries.map(i => i.id);
-
-    // Include special folders
-    for (const special of ['gcash_current', 'curated']) {
-      if (await fs.pathExists(path.join(PATHS.patterns, special))) {
-        if (!industries.includes(special)) industries.push(special);
-      }
-    }
-
-    if (industryIds) {
-      industries = industries.filter(id => industryIds.includes(id));
-    }
+    const industries = await loadIndustries(industryIds, PATHS.patterns);
 
     for (const industryId of industries) {
       const patternsDir = path.join(PATHS.patterns, industryId);
@@ -628,8 +515,7 @@ Output as JSON:
 
     const text = response.content[0]?.text || '';
     try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text);
+      const parsed = parseJsonResponse(text);
       return parsed.clusters || [];
     } catch {
       logError(`  Failed to parse ${category} synthesis`);
@@ -698,8 +584,7 @@ Output as JSON:
 
     const text = response.content[0]?.text || '';
     try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      return JSON.parse(jsonMatch ? jsonMatch[0] : text);
+      return parseJsonResponse(text);
     } catch {
       logError('Failed to parse cross-category synthesis');
       return { raw: text };
