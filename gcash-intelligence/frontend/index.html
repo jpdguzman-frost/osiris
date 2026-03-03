@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Osiris — Design Intelligence</title>
+  <script>
+    // Set <base> so relative asset paths resolve correctly under any subpath (e.g. /osiris/)
+    var b = document.createElement('base');
+    var p = location.pathname.replace(/\/+$/, ''); // trim trailing slashes
+    // Strip /frontend/... to get the mount root
+    var root = p.replace(/\/frontend(\/.*)?$/, '');
+    b.href = root + '/';
+    document.head.appendChild(b);
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Text:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="frontend/css/app.css">
+</head>
+<body>
+
+<div id="app"></div>
+
+<!-- ─── App Template ────────────────────────────────────────────────── -->
+<script id="app-template" type="text/ractive">
+  <nav class="nav">
+    <div class="nav-brand" on-click="@this.navigate('/')">Osiris <span>Design Intelligence</span></div>
+    <div class="nav-links">
+      <div class="nav-link {{#if currentView === 'dashboard'}}active{{/if}}" on-click="@this.navigate('/')">Dashboard</div>
+      <div class="nav-link {{#if currentView === 'gallery'}}active{{/if}}" on-click="@this.navigate('/gallery')">Gallery</div>
+      <div class="nav-link {{#if currentView === 'buckets' || currentView === 'bucketDetail'}}active{{/if}}" on-click="@this.navigate('/buckets')">Buckets</div>
+      <div class="nav-link {{#if currentView === 'scatter'}}active{{/if}}" on-click="@this.navigate('/scatter')">Scatter</div>
+    </div>
+    <div class="nav-spacer"></div>
+    {{#if stats}}
+    <div class="nav-stat"><strong>{{stats.totalScreens}}</strong> screens analyzed</div>
+    {{/if}}
+  </nav>
+
+  <div class="main-content">
+    {{#if currentView === 'dashboard'}}
+      {{>dashboard}}
+    {{elseif currentView === 'gallery'}}
+      {{>gallery}}
+    {{elseif currentView === 'buckets'}}
+      {{>buckets}}
+    {{elseif currentView === 'bucketDetail'}}
+      {{>bucketDetail}}
+    {{elseif currentView === 'scatter'}}
+      {{>scatter}}
+    {{elseif currentView === 'detail'}}
+      {{>detail}}
+    {{/if}}
+  </div>
+
+  {{#if bucketModal.visible}}
+  <div class="bucket-overlay" on-click="@this.handleBucketOverlayClick(event)">
+    <div class="bucket-modal">
+      <div class="bucket-modal-header">
+        <div>
+          <div class="bucket-modal-title">Add {{bucketModal.screenIds.length}} screen{{bucketModal.screenIds.length === 1 ? '' : 's'}} to bucket</div>
+          <div class="bucket-modal-subtitle">Select a bucket or create a new one</div>
+        </div>
+        <button class="cluster-modal-close" on-click="@this.closeBucketModal()">&#x2715;</button>
+      </div>
+      <div class="bucket-modal-body">
+        {{#if bucketModal.creating}}
+        <div class="bucket-modal-new-row">
+          <input class="bucket-modal-new-input" value="{{bucketModal.newBucketName}}" placeholder="New bucket name..." on-keydown="@this.handleBucketNewKeydown(event)">
+          <button class="btn btn-primary" on-click="@this.confirmCreateAndAdd()" {{#if !bucketModal.newBucketName.trim()}}disabled{{/if}}>Create & Add</button>
+          <button class="btn btn-ghost" on-click="@this.set('bucketModal.creating', false)">Cancel</button>
+        </div>
+        {{else}}
+        <button class="bucket-modal-new-btn" on-click="@this.set('bucketModal.creating', true)">+ New Bucket</button>
+        {{/if}}
+        <div class="bucket-modal-list">
+          {{#each bucketModal.buckets}}
+          <div class="bucket-modal-item" on-click="@this.addToBucketAndClose(this._id)">
+            <span class="bucket-modal-item-name">{{this.name}}</span>
+            <span class="bucket-modal-item-count">{{this.count}} screens</span>
+          </div>
+          {{/each}}
+          {{#if bucketModal.buckets.length === 0 && !bucketModal.creating}}
+          <div class="empty-state" style="padding: var(--space-6) 0;">
+            <div class="empty-state-title">No buckets yet</div>
+            <p>Create your first bucket above</p>
+          </div>
+          {{/if}}
+        </div>
+      </div>
+      <div class="bucket-modal-footer">
+        <span class="reclassify-hint">Press <kbd>B</kbd> to open · <kbd>Esc</kbd> to close</span>
+        <button class="btn btn-ghost" on-click="@this.closeBucketModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+  {{/if}}
+
+  {{#if reclassifyModal.visible}}
+  <div class="reclassify-overlay" on-click="@this.handleReclassifyOverlayClick(event)">
+    <div class="reclassify-modal">
+      <div class="reclassify-modal-header">
+        <div>
+          <div class="reclassify-modal-title">Reclassify {{reclassifyModal.count}} screen{{reclassifyModal.count === 1 ? '' : 's'}}</div>
+          {{#if reclassifyModal.currentTypes.length}}
+          <div class="reclassify-modal-subtitle">Currently: {{reclassifyModal.currentTypes.join(', ')}}</div>
+          {{/if}}
+        </div>
+        <button class="cluster-modal-close" on-click="@this.closeReclassifyModal()">&#x2715;</button>
+      </div>
+      <div class="reclassify-type-grid">
+        {{#each vocabs.screen_types}}
+        <button class="reclassify-type-btn" on-click="@this.applyReclassify(this)">{{this}}</button>
+        {{/each}}
+      </div>
+      <div class="reclassify-modal-footer">
+        <span class="reclassify-hint">Press <kbd>C</kbd> to open · <kbd>Esc</kbd> to close</span>
+        <button class="btn btn-ghost" on-click="@this.closeReclassifyModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+  {{/if}}
+</script>
+
+<!-- ─── Dashboard Partial ───────────────────────────────────────────── -->
+<script id="dashboard-template" type="text/ractive">
+  <div class="page page--contained">
+    <div class="page-header">
+      <h1 class="page-title">Pipeline Overview</h1>
+      <p class="page-subtitle">Cross-industry visual design intelligence for GCash</p>
+    </div>
+
+    {{#if dashLoading}}
+    <div class="loading">
+      <span class="loading-dot"></span>
+      <span class="loading-dot"></span>
+      <span class="loading-dot"></span>
+    </div>
+    {{else}}
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-value">{{stats.totalScreens}}</div>
+        <div class="stat-label">Screens Analyzed</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{industryCount}}</div>
+        <div class="stat-label">Industries</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${{formatCost(stats.totalCost)}}</div>
+        <div class="stat-label">API Cost</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{stats.withFingerprints}}</div>
+        <div class="stat-label">Fingerprinted</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">Industry Breakdown</h2>
+      <div class="industry-list">
+        {{#each industries}}
+        <div class="industry-row" on-click="@this.navigateToIndustry(this.id)">
+          <div class="industry-name">{{this.name}}</div>
+          <div class="industry-bar-track">
+            <div class="industry-bar-fill" style="width: {{this.pct}}%"></div>
+          </div>
+          <div class="industry-count">{{this.count}}</div>
+        </div>
+        {{/each}}
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">Score Averages by Industry</h2>
+      <div class="score-avg-grid">
+        {{#each scoreCards}}
+        <div class="score-avg-card">
+          <div class="score-avg-title">{{this.label}}</div>
+          {{#each this.rows}}
+          <div class="score-avg-row">
+            <div class="score-avg-label">{{this.industry}}</div>
+            <div class="score-avg-bar">
+              <div class="score-avg-fill" style="width: {{this.pct}}%"></div>
+            </div>
+            <div class="score-avg-value">{{this.avg}}</div>
+          </div>
+          {{/each}}
+        </div>
+        {{/each}}
+      </div>
+    </div>
+
+    {{/if}}
+  </div>
+</script>
+
+<!-- ─── Gallery Partial ─────────────────────────────────────────────── -->
+<script id="gallery-template" type="text/ractive">
+  <div class="page">
+    <div class="page-header">
+      <h1 class="page-title">Screen Gallery</h1>
+      <p class="page-subtitle">Browse and filter analyzed screens across industries</p>
+    </div>
+
+    <div class="gallery-layout">
+      <div class="gallery-filters">
+        <div class="filter-group">
+          <div class="filter-label">Industry</div>
+          <select class="filter-select" value="{{filters.industry}}" on-change="@this.applyFilters()">
+            <option value="">All Industries</option>
+            {{#each industries}}
+            <option value="{{this.id}}">{{this.name}} ({{this.count}})</option>
+            {{/each}}
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-label">Screen Type</div>
+          <select class="filter-select" value="{{filters.screen_type}}" on-change="@this.applyFilters()">
+            <option value="">All Types</option>
+            {{#each vocabs.screen_types}}
+            <option value="{{this}}">{{this}}</option>
+            {{/each}}
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-label">Design Mood</div>
+          <select class="filter-select" value="{{filters.mood}}" on-change="@this.applyFilters()">
+            <option value="">All Moods</option>
+            {{#each vocabs.design_moods}}
+            <option value="{{this}}">{{this}}</option>
+            {{/each}}
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-label">Sort By</div>
+          <select class="filter-select" value="{{filters.sort}}" on-change="@this.applyFilters()">
+            <option value="overall_quality">Overall Quality</option>
+            <option value="calm_confident">Calm & Confident</option>
+            <option value="bold_forward">Bold & Forward</option>
+            <option value="color_restraint">Color Restraint</option>
+            <option value="hierarchy_clarity">Hierarchy Clarity</option>
+            <option value="glanceability">Glanceability</option>
+            <option value="brand_confidence">Brand Confidence</option>
+            <option value="whitespace_ratio">Whitespace Ratio</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-label">Score Range</div>
+          <div class="range-slider">
+            <div class="range-slider-track">
+              <div class="range-slider-fill" style="left: {{(filters.min_score / 10) * 100}}%; right: {{100 - (filters.max_score / 10) * 100}}%"></div>
+            </div>
+            <input type="range" class="range-slider-thumb range-slider-min" min="0" max="10" step="1" value="{{filters.min_score}}" on-input="@this.clampRange('min')" on-change="@this.applyFilters()">
+            <input type="range" class="range-slider-thumb range-slider-max" min="0" max="10" step="1" value="{{filters.max_score}}" on-input="@this.clampRange('max')" on-change="@this.applyFilters()">
+            <div class="range-slider-labels">
+              <span>{{filters.min_score}}</span>
+              <span>{{filters.max_score}}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="filter-result-count">
+          <strong>{{galleryTotal}}</strong> screens found
+        </div>
+      </div>
+
+      <div class="gallery-main">
+        {{#if galleryLoading}}
+        <div class="loading">
+          <span class="loading-dot"></span>
+          <span class="loading-dot"></span>
+          <span class="loading-dot"></span>
+        </div>
+        {{elseif screens.length === 0}}
+        <div class="empty-state">
+          <div class="empty-state-title">No screens match your filters</div>
+          <p>Try adjusting the filters to see more results.</p>
+        </div>
+        {{else}}
+        {{#if isSelectMode}}
+        <div class="selection-bar">
+          <span class="selection-count">{{selectedScreenIds.size}} selected</span>
+          <button class="btn btn-secondary" on-click="@this.openBucketModalFromGallery()" title="Add to bucket (B)">Add to Bucket</button>
+          <button class="btn btn-secondary" on-click="@this.openReclassifyModal()" title="Reclassify selected screens (C)">Reclassify</button>
+          <button class="btn btn-danger" on-click="@this.deleteSelectedScreens()">Delete</button>
+          <button class="btn btn-ghost" on-click="@this.clearSelection()">Cancel</button>
+        </div>
+        {{/if}}
+
+        <div class="screen-grid">
+          {{#each screens}}
+          <div class="screen-card {{~/selectedScreenIds.has(this.screen_id) ? 'is-selected' : ''}}" on-click="@this.handleCardClick(this.screen_id, event)">
+            <div class="screen-card-image">
+              <img src="{{this.image_url}}" alt="{{this.screen_id}}" loading="lazy">
+              <button class="screen-card-similar-btn" on-click="@this.findSimilarFromGallery(this.screen_id, event)" title="Find similar screens">&#x2B1C;</button>
+            </div>
+            <div class="screen-card-body">
+              <div class="screen-card-id">{{this.screen_id}}</div>
+              <div class="screen-card-meta">
+                <span class="pill pill-industry">{{this.industry}}</span>
+                {{#if this.analysis.screen_type}}<span class="pill pill-neutral">{{this.analysis.screen_type}}</span>{{/if}}
+              </div>
+            </div>
+          </div>
+          {{/each}}
+        </div>
+
+        {{#if hasMore}}
+        <div class="scroll-sentinel" id="scroll-sentinel">
+          <div class="loading">
+            <span class="loading-dot"></span>
+            <span class="loading-dot"></span>
+            <span class="loading-dot"></span>
+          </div>
+        </div>
+        {{/if}}
+
+        {{/if}}
+      </div>
+    </div>
+  </div>
+
+</script>
+
+<!-- ─── Screen Detail Partial ────────────────────────────────────────── -->
+<script id="detail-template" type="text/ractive">
+  <div class="page page--contained">
+    {{#if detailLoading}}
+    <div class="loading">
+      <span class="loading-dot"></span>
+      <span class="loading-dot"></span>
+      <span class="loading-dot"></span>
+    </div>
+    {{elseif screen}}
+
+    <div class="detail-back">
+      <a href="#/gallery" class="detail-back-link">&larr; Back to Gallery</a>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn-secondary" on-click="@this.openBucketModalFromDetail()">Add to Bucket</button>
+        <button class="detail-delete-btn" on-click="@this.deleteCurrentScreen()">Delete Screen</button>
+      </div>
+    </div>
+
+    <div class="detail-hero">
+      <div class="detail-image">
+        <img src="{{screen.image_url}}" alt="{{screen.screen_id}}">
+        <button class="find-similar-btn detail-image-similar-btn" on-click="@this.toggleSimilar()">{{#if similarVisible}}Hide Similar{{else}}Find Similar{{/if}}</button>
+      </div>
+      <div class="detail-meta">
+        <h1 class="detail-title">{{screen.screen_id}}</h1>
+        <div class="detail-tags-row">
+          <span class="pill pill-industry">{{screen.industry}}</span>
+          {{#if screen.analysis.screen_type}}<span class="pill pill-neutral">{{screen.analysis.screen_type}}</span>{{/if}}
+          {{#if screen.analysis.platform}}<span class="pill pill-neutral">{{screen.analysis.platform}}</span>{{/if}}
+        </div>
+
+        {{#if screen.analysis.verdict}}
+        <div class="detail-section">
+          <div class="detail-section-label">Verdict</div>
+          <p class="detail-verdict">{{screen.analysis.verdict}}</p>
+        </div>
+        {{/if}}
+
+        {{#if screen.analysis.color_palette}}
+        <div class="detail-section">
+          <div class="detail-section-label">Color Palette</div>
+          <div class="color-swatches">
+            {{#each screen.analysis.color_palette.dominant}}
+            <div class="color-swatch" style="background: {{this}}" title="{{this}}"></div>
+            {{/each}}
+            {{#if screen.analysis.color_palette.accent}}
+            <div class="color-swatch color-swatch-accent" style="background: {{screen.analysis.color_palette.accent}}" title="Accent: {{screen.analysis.color_palette.accent}}"></div>
+            {{/if}}
+          </div>
+          <div class="detail-meta-line">
+            <span class="text-tertiary text-sm">{{screen.analysis.color_palette.strategy}}</span>
+            {{#if screen.analysis.color_palette.dark_mode}}<span class="pill pill-neutral" style="margin-left: 8px;">dark mode</span>{{/if}}
+          </div>
+        </div>
+        {{/if}}
+
+        {{#if screen.analysis.typography}}
+        <div class="detail-section">
+          <div class="detail-section-label">Typography</div>
+          <div class="detail-meta-line">
+            <span>{{screen.analysis.typography.primary_style}}</span>
+            <span class="text-tertiary">&middot;</span>
+            <span>{{screen.analysis.typography.scale}}</span>
+            <span class="text-tertiary">&middot;</span>
+            <span>{{screen.analysis.typography.weight_bias}}</span>
+          </div>
+        </div>
+        {{/if}}
+
+        {{#if screen.analysis.spatial}}
+        <div class="detail-section">
+          <div class="detail-section-label">Layout</div>
+          <div class="detail-meta-line">
+            <span>{{screen.analysis.spatial.layout}}</span>
+            <span class="text-tertiary">&middot;</span>
+            <span>{{screen.analysis.spatial.density_feel}}</span>
+          </div>
+        </div>
+        {{/if}}
+
+      </div>
+    </div>
+
+    <!-- Similar Screens -->
+    {{#if similarVisible}}
+    <div class="similar-section">
+      <div class="similar-header">
+        <h2 class="section-title">Similar Screens</h2>
+        {{#if similarResults.length}}
+        <button class="btn btn-secondary" on-click="@this.openBucketModalFromSimilar()">{{#if similarSelectMode}}Add Selected to Bucket{{else}}Add All to Bucket{{/if}}</button>
+        {{/if}}
+        <div class="preset-pills">
+          {{#each presets}}
+          <button class="preset-pill {{#if this.key === similarPreset}}active{{/if}}" on-click="@this.switchPreset(this.key)" title="{{this.desc}}">{{this.label}}</button>
+          {{/each}}
+        </div>
+      </div>
+
+      {{#if similarLoading}}
+      <div class="loading">
+        <span class="loading-dot"></span>
+        <span class="loading-dot"></span>
+        <span class="loading-dot"></span>
+      </div>
+      {{elseif similarResults.length === 0}}
+      <div class="empty-state">
+        <div class="empty-state-title">No similar screens found</div>
+      </div>
+      {{else}}
+      {{#if similarSelectMode}}
+      <div class="selection-bar">
+        <span class="selection-count">{{similarSelectedIds.size}} selected</span>
+        <button class="btn btn-secondary" on-click="@this.openBucketModalFromSimilar()">Add to Bucket</button>
+        <button class="btn btn-ghost" on-click="@this.clearSimilarSelection()">Cancel</button>
+      </div>
+      {{/if}}
+      <div class="screen-grid">
+        {{#each similarResults}}
+        <div class="screen-card {{~/similarSelectedIds.has(this.screen_id) ? 'is-selected' : ''}}" on-click="@this.handleSimilarCardClick(this.screen_id, event)">
+          <div class="screen-card-image">
+            <img src="{{this.image_url}}" alt="{{this.screen_id}}" loading="lazy">
+            <div class="similarity-badge" title="{{simBreakdown(this.similarity)}}">{{simPct(this.similarity.total)}}%</div>
+          </div>
+          <div class="screen-card-body">
+            <div class="screen-card-id">{{this.screen_id}}</div>
+            <div class="screen-card-meta">
+              <span class="pill pill-industry">{{this.industry}}</span>
+              {{#if this.analysis.screen_type}}<span class="pill pill-neutral">{{this.analysis.screen_type}}</span>{{/if}}
+            </div>
+          </div>
+        </div>
+        {{/each}}
+      </div>
+      {{#if similarHasMore || similarLoadingMore}}
+      <div class="similar-show-more">
+        {{#if similarLoadingMore}}
+        <div class="loading">
+          <span class="loading-dot"></span>
+          <span class="loading-dot"></span>
+          <span class="loading-dot"></span>
+        </div>
+        {{else}}
+        <button class="find-similar-btn" on-click="@this.loadMoreSimilar()">Show More</button>
+        {{/if}}
+      </div>
+      {{/if}}
+      {{/if}}
+    </div>
+    {{/if}}
+
+    <!-- Scores + Spectrum Grid -->
+    <div class="detail-scores-section">
+      <div class="scores-grid">
+        <div class="scores-column">
+          <div class="scores-column-title">Core Scores</div>
+          {{#each coreScoresLeft}}
+          <div class="score-item">
+            <div class="score-item-label">{{this.label}}</div>
+            <div class="score-item-value {{#if this.value > 8}}highlight{{/if}}">{{this.value}}</div>
+          </div>
+          {{/each}}
+        </div>
+        <div class="scores-column">
+          <div class="scores-column-title">&nbsp;</div>
+          {{#each coreScoresRight}}
+          <div class="score-item">
+            <div class="score-item-label">{{this.label}}</div>
+            <div class="score-item-value {{#if this.value > 8}}highlight{{/if}}">{{this.value}}</div>
+          </div>
+          {{/each}}
+        </div>
+        <div class="scores-column">
+          <div class="scores-column-title">Emotional Spectrum</div>
+          <div class="spectrum-list">
+            {{#each spectrumScores}}
+            <div class="spectrum-row">
+              <div class="spectrum-label-left">{{this.leftLabel}}</div>
+              <div class="spectrum-track">
+                <div class="spectrum-center"></div>
+                <div class="spectrum-dot" style="left: {{this.dotPct}}%"></div>
+              </div>
+              <div class="spectrum-label-right">{{this.rightLabel}}</div>
+            </div>
+            {{/each}}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fingerprint Tags -->
+    {{#if screen.fingerprint}}
+    <div class="detail-scores-section">
+      <h2 class="section-title">Fingerprint</h2>
+      <div class="detail-fingerprint">
+        <div class="detail-fp-group">
+          <div class="detail-section-label">Style Tags</div>
+          <div class="pill-list">
+            {{#each screen.fingerprint.style_tags}}
+            <span class="pill pill-tag">{{this}}</span>
+            {{/each}}
+          </div>
+        </div>
+        <div class="detail-fp-group">
+          <div class="detail-section-label">Mood</div>
+          <span class="pill pill-tag">{{screen.fingerprint.design_mood}}</span>
+        </div>
+        <div class="detail-fp-group">
+          <div class="detail-section-label">Color Temp</div>
+          <span class="pill pill-tag">{{screen.fingerprint.color_temp}}</span>
+        </div>
+        <div class="detail-fp-group">
+          <div class="detail-section-label">Features</div>
+          <div class="pill-list">
+            {{#if screen.fingerprint.has_hero_image}}<span class="pill pill-feature">hero image</span>{{/if}}
+            {{#if screen.fingerprint.has_bottom_nav}}<span class="pill pill-feature">bottom nav</span>{{/if}}
+            {{#if screen.fingerprint.has_top_bar}}<span class="pill pill-feature">top bar</span>{{/if}}
+            {{#if screen.fingerprint.has_cards}}<span class="pill pill-feature">cards</span>{{/if}}
+            {{#if screen.fingerprint.has_icons}}<span class="pill pill-feature">icons</span>{{/if}}
+            {{#if screen.fingerprint.has_illustrations}}<span class="pill pill-feature">illustrations</span>{{/if}}
+            {{#if screen.fingerprint.has_gradient}}<span class="pill pill-feature">gradient</span>{{/if}}
+            {{#if screen.fingerprint.has_shadow}}<span class="pill pill-feature">shadow</span>{{/if}}
+            {{#if screen.fingerprint.has_dividers}}<span class="pill pill-feature">dividers</span>{{/if}}
+            {{#if screen.fingerprint.has_fab}}<span class="pill pill-feature">FAB</span>{{/if}}
+            {{#if screen.fingerprint.has_avatar}}<span class="pill pill-feature">avatar</span>{{/if}}
+          </div>
+        </div>
+      </div>
+    </div>
+    {{/if}}
+
+    {{/if}}
+  </div>
+</script>
+
+<!-- ─── Buckets Partial ─────────────────────────────────────────────── -->
+<script id="buckets-template" type="text/ractive">
+  <div class="page page--contained">
+    <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;">
+      <div>
+        <h1 class="page-title">Buckets</h1>
+        <p class="page-subtitle">Curated screen collections for focused analysis</p>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-secondary" on-click="@this.importDistillationPrompt()">Import Distillation</button>
+        <button class="btn btn-primary" on-click="@this.createBucketPrompt()">New Bucket</button>
+      </div>
+    </div>
+
+    {{#if bucketsLoading}}
+    <div class="loading">
+      <span class="loading-dot"></span>
+      <span class="loading-dot"></span>
+      <span class="loading-dot"></span>
+    </div>
+    {{elseif bucketList.length === 0}}
+    <div class="empty-state">
+      <div class="empty-state-title">No buckets yet</div>
+      <p>Create a bucket to start curating screen collections.</p>
+    </div>
+    {{else}}
+    <div class="bucket-grid">
+      {{#each bucketList}}
+      <div class="bucket-card" on-click="@this.navigate('/bucket/' + this._id)">
+        {{#if this.previews && this.previews.length}}
+        <div class="bucket-card-previews">
+          {{#each this.previews}}
+          <div class="bucket-card-thumb" style="background-image:url('{{this}}')"></div>
+          {{/each}}
+        </div>
+        {{else}}
+        <div class="bucket-card-previews bucket-card-previews--empty">
+          <div class="bucket-card-empty-icon">&#9634;</div>
+        </div>
+        {{/if}}
+        <div class="bucket-card-info">
+          <div class="bucket-card-name">{{this.name}}</div>
+          <div class="bucket-card-count">{{this.count}} screen{{this.count !== 1 ? 's' : ''}}</div>
+          {{#if this.description}}<div class="bucket-card-desc">{{this.description}}</div>{{/if}}
+        </div>
+        <button class="bucket-card-delete" on-click="@this.deleteBucketFromCard(this._id, this.name, event)" title="Delete bucket">&#x2715;</button>
+      </div>
+      {{/each}}
+    </div>
+    {{/if}}
+  </div>
+</script>
+
+<!-- ─── Bucket Detail Partial ──────────────────────────────────────── -->
+<script id="bucket-detail-template" type="text/ractive">
+  <div class="page page--contained">
+    {{#if bucketLoading && !bucketDetail}}
+    <div class="loading">
+      <span class="loading-dot"></span>
+      <span class="loading-dot"></span>
+      <span class="loading-dot"></span>
+    </div>
+    {{elseif bucketDetail}}
+
+    <div class="detail-back">
+      <a href="#/buckets" class="detail-back-link">&larr; Back to Buckets</a>
+    </div>
+
+    <div class="bucket-header-row">
+      <div class="bucket-header-left">
+        {{#if renamingBucket}}
+        <input class="bucket-name-input" value="{{bucketNewName}}" on-keydown="@this.handleRenameKeydown(event)" on-blur="@this.confirmRenameBucket()">
+        {{else}}
+        <h1 class="page-title bucket-name-editable" on-click="@this.startRenameBucket()">{{bucketDetail.name}}</h1>
+        {{/if}}
+        <span class="page-subtitle">{{bucketDetail.count}} screen{{bucketDetail.count !== 1 ? 's' : ''}}</span>
+      </div>
+      <div class="bucket-header-controls">
+        <div class="filter-group">
+          <div class="filter-label">Sort By</div>
+          <select class="filter-select" value="{{bucketSort}}" on-change="@this.loadBucketDetail(bucketDetailId)">
+            <option value="overall_quality">Overall Quality</option>
+            <option value="calm_confident">Calm & Confident</option>
+            <option value="bold_forward">Bold & Forward</option>
+            <option value="color_restraint">Color Restraint</option>
+            <option value="hierarchy_clarity">Hierarchy Clarity</option>
+            <option value="glanceability">Glanceability</option>
+            <option value="brand_confidence">Brand Confidence</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metadata section — editorial layout -->
+    {{#if bucketDetail.metadata && bucketDetail.metadata.editorial_summary}}
+    <div class="ed-section">
+
+      <!-- Stats bar -->
+      {{#if bucketDetail.metadata.stats}}
+      <div class="ed-stats-row">
+        <div class="ed-stat">
+          <div class="ed-stat-value">{{bucketDetail.metadata.stats.screen_count}}</div>
+          <div class="ed-stat-rule"></div>
+          <div class="ed-stat-label">Screens Analyzed</div>
+        </div>
+        <div class="ed-stat">
+          <div class="ed-stat-value">{{bucketDetail.metadata.stats.avg_quality || '—'}}</div>
+          <div class="ed-stat-rule"></div>
+          <div class="ed-stat-label">Avg Quality</div>
+        </div>
+        <div class="ed-stat">
+          <div class="ed-stat-value">{{bucketDetail.metadata.stats.industry_count}}</div>
+          <div class="ed-stat-rule"></div>
+          <div class="ed-stat-label">Industries</div>
+        </div>
+        <div class="ed-stat">
+          <div class="ed-stat-value ed-stat-value--text">{{bucketDetail.metadata.mood_summary || bucketDetail.metadata.stats.top_mood}}</div>
+          <div class="ed-stat-rule"></div>
+          <div class="ed-stat-label">Dominant Mood</div>
+        </div>
+      </div>
+      {{/if}}
+
+      <!-- Editorial heading + actions -->
+      <div class="ed-heading-row">
+        <div class="ed-heading-left">
+          <h2 class="ed-heading">Collection Insights</h2>
+          <div class="ed-heading-accent"></div>
+        </div>
+        <div class="ed-heading-actions">
+          <button class="btn btn-primary" on-click="@this.generateBucketMetadata()" {{#if bucketMetadataLoading}}disabled{{/if}}>
+            {{#if bucketMetadataLoading}}Regenerating…{{else}}Regenerate{{/if}}
+          </button>
+          <button class="btn btn-secondary" on-click="@this.discoverScreens()" {{#if bucketDiscoverLoading}}disabled{{/if}}>
+            {{#if bucketDiscoverLoading}}Discovering…{{else}}Discover Similar{{/if}}
+          </button>
+        </div>
+      </div>
+
+      <!-- Editorial summary — large stats left + prose right -->
+      <div class="ed-summary">
+        <div class="ed-summary-stats">
+          {{#if bucketDetail.metadata.stats}}
+          <div class="ed-summary-metric">
+            <div class="ed-summary-metric-value">{{bucketDetail.metadata.stats.avg_calm || '—'}}</div>
+            <div class="ed-summary-metric-label">Calm & Confident</div>
+          </div>
+          <div class="ed-summary-metric">
+            <div class="ed-summary-metric-value">{{bucketDetail.metadata.stats.avg_bold || '—'}}</div>
+            <div class="ed-summary-metric-label">Bold & Forward</div>
+          </div>
+          <div class="ed-summary-metric">
+            <div class="ed-summary-metric-value">{{bucketDetail.metadata.stats.avg_quality || '—'}}</div>
+            <div class="ed-summary-metric-label">Overall Quality</div>
+          </div>
+          {{/if}}
+        </div>
+        <div class="ed-summary-prose">
+          <p>{{bucketDetail.metadata.editorial_summary || bucketDetail.metadata.description}}</p>
+        </div>
+      </div>
+
+      <!-- 3-column insight grid -->
+      <div class="ed-columns">
+        {{#if bucketDetail.metadata.patterns && bucketDetail.metadata.patterns.length}}
+        <div class="ed-column">
+          <h3 class="ed-column-title">Recurring Patterns</h3>
+          <div class="ed-column-accent"></div>
+          <div class="ed-entries">
+            {{#each bucketDetail.metadata.patterns:pi}}
+            <div class="ed-entry {{#if typeof this === 'object' && this.screen_ids && this.screen_ids.length}}ed-entry--clickable{{/if}} {{#if insightFilter && insightFilter.key === 'patterns-' + pi}}ed-entry--active{{/if}}" {{#if typeof this === 'object' && this.screen_ids && this.screen_ids.length}}on-click="@this.filterByInsight('patterns-' + pi, this.title, this.screen_ids)"{{/if}}>
+              {{#if typeof this === 'object'}}
+              <p><strong>{{this.title}}:</strong> {{this.detail}}</p>
+              {{#if this.screen_ids && this.screen_ids.length}}<span class="ed-entry-count">{{this.screen_ids.length}} examples</span>{{/if}}
+              {{else}}
+              <p>{{this}}</p>
+              {{/if}}
+            </div>
+            {{/each}}
+          </div>
+        </div>
+        {{/if}}
+        {{#if bucketDetail.metadata.insights && bucketDetail.metadata.insights.length}}
+        <div class="ed-column">
+          <h3 class="ed-column-title">Key Insights</h3>
+          <div class="ed-column-accent"></div>
+          <div class="ed-entries">
+            {{#each bucketDetail.metadata.insights:ii}}
+            <div class="ed-entry {{#if typeof this === 'object' && this.screen_ids && this.screen_ids.length}}ed-entry--clickable{{/if}} {{#if insightFilter && insightFilter.key === 'insights-' + ii}}ed-entry--active{{/if}}" {{#if typeof this === 'object' && this.screen_ids && this.screen_ids.length}}on-click="@this.filterByInsight('insights-' + ii, this.title, this.screen_ids)"{{/if}}>
+              {{#if typeof this === 'object'}}
+              <p><strong>{{this.title}}:</strong> {{this.detail}}</p>
+              {{#if this.screen_ids && this.screen_ids.length}}<span class="ed-entry-count">{{this.screen_ids.length}} examples</span>{{/if}}
+              {{else}}
+              <p>{{this}}</p>
+              {{/if}}
+            </div>
+            {{/each}}
+          </div>
+        </div>
+        {{/if}}
+        {{#if bucketDetail.metadata.recommendations && bucketDetail.metadata.recommendations.length}}
+        <div class="ed-column">
+          <h3 class="ed-column-title">Recommendations</h3>
+          <div class="ed-column-accent"></div>
+          <div class="ed-entries">
+            {{#each bucketDetail.metadata.recommendations:ri}}
+            <div class="ed-entry {{#if typeof this === 'object' && this.screen_ids && this.screen_ids.length}}ed-entry--clickable{{/if}} {{#if insightFilter && insightFilter.key === 'recommendations-' + ri}}ed-entry--active{{/if}}" {{#if typeof this === 'object' && this.screen_ids && this.screen_ids.length}}on-click="@this.filterByInsight('recommendations-' + ri, this.title, this.screen_ids)"{{/if}}>
+              {{#if typeof this === 'object'}}
+              <p><strong>{{this.title}}:</strong> {{this.detail}}</p>
+              {{#if this.screen_ids && this.screen_ids.length}}<span class="ed-entry-count">{{this.screen_ids.length}} examples</span>{{/if}}
+              {{else}}
+              <p>{{this}}</p>
+              {{/if}}
+            </div>
+            {{/each}}
+          </div>
+        </div>
+        {{/if}}
+      </div>
+
+      <!-- Timestamp -->
+      {{#if bucketDetail.metadata.generated_at}}
+      <div class="ed-footer">
+        <div class="ed-footer-rule"></div>
+        <div class="ed-timestamp">Generated: {{@this.formatInsightDate(bucketDetail.metadata.generated_at)}}</div>
+      </div>
+      {{/if}}
+
+    </div>
+
+    {{elseif bucketDetail.metadata}}
+    <!-- Fallback for legacy metadata without editorial_summary -->
+    <div class="ed-section">
+      <div class="ed-heading-row">
+        <div class="ed-heading-left">
+          <h2 class="ed-heading">Collection Insights</h2>
+          <div class="ed-heading-accent"></div>
+        </div>
+        <div class="ed-heading-actions">
+          <button class="btn btn-primary" on-click="@this.generateBucketMetadata()" {{#if bucketMetadataLoading}}disabled{{/if}}>
+            {{#if bucketMetadataLoading}}Regenerating…{{else}}Regenerate{{/if}}
+          </button>
+          <button class="btn btn-secondary" on-click="@this.discoverScreens()" {{#if bucketDiscoverLoading}}disabled{{/if}}>
+            {{#if bucketDiscoverLoading}}Discovering…{{else}}Discover Similar{{/if}}
+          </button>
+        </div>
+      </div>
+      <div class="ed-summary">
+        <div class="ed-summary-prose ed-summary-prose--full">
+          <p>{{bucketDetail.metadata.description}}</p>
+        </div>
+      </div>
+    </div>
+
+    {{elseif bucketDetail.count > 0}}
+    <div class="ed-empty-actions">
+      <button class="btn btn-primary" on-click="@this.generateBucketMetadata()" {{#if bucketMetadataLoading}}disabled{{/if}}>
+        {{#if bucketMetadataLoading}}
+        <span class="ed-spinner"></span> Generating Insights…
+        {{else}}Generate Insights{{/if}}
+      </button>
+      <button class="btn btn-secondary" on-click="@this.discoverScreens()" {{#if bucketDiscoverLoading}}disabled{{/if}}>
+        {{#if bucketDiscoverLoading}}Discovering…{{else}}Discover Similar{{/if}}
+      </button>
+    </div>
+    {{/if}}
+
+    {{#if bucketDiscoverVisible}}
+    <div class="section" style="margin-bottom:var(--space-8);">
+      <div class="similar-header">
+        <h2 class="section-title" style="border:none;padding:0;">Discovered Screens ({{bucketDiscoverResults.length}})</h2>
+        <div style="display:flex;gap:8px;align-items:center;">
+          {{#if bucketDiscoverResults.length}}
+          <button class="btn btn-ghost" on-click="@this.selectAllDiscovered()">Select All</button>
+          {{#if bucketDiscoverSelectMode}}
+          <button class="btn btn-primary" on-click="@this.addDiscoveredToBucket()">Add {{bucketDiscoverSelectedIds.size}} to Bucket</button>
+          <button class="btn btn-ghost" on-click="@this.clearDiscoverSelection()">Deselect</button>
+          {{/if}}
+          {{/if}}
+          <button class="btn btn-ghost" on-click="@this.closeDiscover()">Close</button>
+        </div>
+      </div>
+
+      {{#if bucketDiscoverLoading}}
+      <div class="loading">
+        <span class="loading-dot"></span>
+        <span class="loading-dot"></span>
+        <span class="loading-dot"></span>
+      </div>
+      {{elseif bucketDiscoverResults.length === 0}}
+      <div class="empty-state" style="padding:var(--space-8) 0;">
+        <div class="empty-state-title">No new similar screens found</div>
+      </div>
+      {{else}}
+      <div class="screen-grid">
+        {{#each bucketDiscoverResults}}
+        <div class="screen-card {{~/bucketDiscoverSelectedIds.has(this.screen_id) ? 'is-selected' : ''}}" on-click="@this.handleDiscoverCardClick(this.screen_id, event)">
+          <div class="screen-card-image">
+            <img src="{{this.image_url}}" alt="{{this.screen_id}}" loading="lazy">
+            <div class="similarity-badge">{{Math.round(this.similarity * 100)}}%</div>
+            <button class="screen-card-similar-btn" on-click="@this.removeDiscoveredScreen(this.screen_id, event)" title="Dismiss">&#x2715;</button>
+          </div>
+          <div class="screen-card-body">
+            <div class="screen-card-id">{{this.screen_id}}</div>
+            <div class="screen-card-meta">
+              <span class="pill pill-industry">{{this.industry}}</span>
+              {{#if this.analysis.screen_type}}<span class="pill pill-neutral">{{this.analysis.screen_type}}</span>{{/if}}
+            </div>
+          </div>
+        </div>
+        {{/each}}
+      </div>
+      {{/if}}
+    </div>
+    {{/if}}
+
+    <div class="section-divider">
+      {{#if insightFilter}}
+      <span class="section-divider-label">Showing {{insightFilter.screenIds.length}} examples for "{{insightFilter.title}}"</span>
+      <button class="btn btn-ghost" style="margin-left:auto;" on-click="@this.clearInsightFilter()">Show All ({{bucketTotal}})</button>
+      {{else}}
+      <span class="section-divider-label">In This Bucket ({{bucketTotal}})</span>
+      {{/if}}
+    </div>
+
+    {{#if bucketSelectMode}}
+    <div class="selection-bar">
+      <span class="selection-count">{{bucketSelectedIds.size}} selected</span>
+      <button class="btn btn-secondary" on-click="@this.openBucketModalFromBucketDetail()" title="Copy to another bucket (B)">Add to Bucket</button>
+      <button class="btn btn-secondary" on-click="@this.openReclassifyFromBucket()" title="Reclassify (C)">Reclassify</button>
+      <button class="btn btn-danger" on-click="@this.removeSelectedFromBucket()">Remove from Bucket</button>
+      <button class="btn btn-ghost" on-click="@this.clearBucketSelection()">Cancel</button>
+    </div>
+    {{/if}}
+
+    {{#if bucketScreens.length === 0 && !bucketLoading}}
+    <div class="empty-state">
+      <div class="empty-state-title">No screens in this bucket</div>
+      <p>Add screens from the Gallery, Detail, or Scatter views.</p>
+    </div>
+    {{else}}
+    <div class="screen-grid">
+      {{#each bucketScreens}}
+      <div class="screen-card {{~/bucketSelectedIds.has(this.screen_id) ? 'is-selected' : ''}}" on-click="@this.handleBucketCardClick(this.screen_id, event)">
+        <div class="screen-card-image">
+          <img src="{{this.image_url}}" alt="{{this.screen_id}}" loading="lazy">
+        </div>
+        <div class="screen-card-body">
+          <div class="screen-card-id">{{this.screen_id}}</div>
+          <div class="screen-card-meta">
+            <span class="pill pill-industry">{{this.industry}}</span>
+            {{#if this.analysis.screen_type}}<span class="pill pill-neutral">{{this.analysis.screen_type}}</span>{{/if}}
+          </div>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+
+    {{#if bucketHasMore}}
+    <div class="scroll-sentinel" id="bucket-scroll-sentinel">
+      <div class="loading">
+        <span class="loading-dot"></span>
+        <span class="loading-dot"></span>
+        <span class="loading-dot"></span>
+      </div>
+    </div>
+    {{/if}}
+    {{/if}}
+
+    {{/if}}
+  </div>
+</script>
+
+<!-- ─── Scatter Partial ──────────────────────────────────────────────── -->
+<script id="scatter-template" type="text/ractive">
+  <div class="scatter-page">
+    <div class="scatter-toolbar">
+      <div class="scatter-toolbar-title">
+        <h1 class="scatter-title">Score Scatter</h1>
+        <span class="scatter-subtitle">{{scatterCount || '...'}} screens</span>
+      </div>
+
+      <div class="scatter-toolbar-controls">
+        <div class="filter-group">
+          <div class="filter-label">X Axis</div>
+          <select class="filter-select" value="{{scatterX}}" on-change="@this.applyScatterFilters()">
+            <optgroup label="Core Metrics (1–10)">
+              <option value="overall_quality">Overall Quality</option>
+              <option value="calm_confident">Calm &amp; Confident</option>
+              <option value="bold_forward">Bold &amp; Forward</option>
+              <option value="color_restraint">Color Restraint</option>
+              <option value="hierarchy_clarity">Hierarchy Clarity</option>
+              <option value="glanceability">Glanceability</option>
+              <option value="density">Density</option>
+              <option value="whitespace_ratio">Whitespace Ratio</option>
+              <option value="brand_confidence">Brand Confidence</option>
+            </optgroup>
+            <optgroup label="Emotional Spectrum (–5 to +5)">
+              <option value="calm_energetic">Calm ↔ Energetic</option>
+              <option value="confident_tentative">Confident ↔ Tentative</option>
+              <option value="forward_conservative">Forward ↔ Conservative</option>
+              <option value="premium_accessible">Premium ↔ Accessible</option>
+              <option value="warm_clinical">Warm ↔ Clinical</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-label">Y Axis</div>
+          <select class="filter-select" value="{{scatterY}}" on-change="@this.applyScatterFilters()">
+            <optgroup label="Core Metrics (1–10)">
+              <option value="overall_quality">Overall Quality</option>
+              <option value="calm_confident">Calm &amp; Confident</option>
+              <option value="bold_forward">Bold &amp; Forward</option>
+              <option value="color_restraint">Color Restraint</option>
+              <option value="hierarchy_clarity">Hierarchy Clarity</option>
+              <option value="glanceability">Glanceability</option>
+              <option value="density">Density</option>
+              <option value="whitespace_ratio">Whitespace Ratio</option>
+              <option value="brand_confidence">Brand Confidence</option>
+            </optgroup>
+            <optgroup label="Emotional Spectrum (–5 to +5)">
+              <option value="calm_energetic">Calm ↔ Energetic</option>
+              <option value="confident_tentative">Confident ↔ Tentative</option>
+              <option value="forward_conservative">Forward ↔ Conservative</option>
+              <option value="premium_accessible">Premium ↔ Accessible</option>
+              <option value="warm_clinical">Warm ↔ Clinical</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <div class="filter-group scatter-industry-group">
+          <div class="filter-label">Industry</div>
+          <div class="multiselect" on-click="@this.toggleScatterIndustryDropdown()">
+            <div class="multiselect-display filter-select">{{@this.scatterIndustryLabel()}}</div>
+            {{#if scatterIndustryOpen}}
+            <div class="multiselect-dropdown" on-click="event.stopPropagation()">
+              {{#if scatterIndustries.length}}
+              <div class="multiselect-item multiselect-clear" on-click="@this.clearScatterIndustries()">Clear All</div>
+              {{/if}}
+              {{#each industries}}
+              <div class="multiselect-item" on-click="@this.toggleScatterIndustry(this.id)">
+                <span class="multiselect-check {{#if scatterSelected[this.id]}}checked{{/if}}">{{#if scatterSelected[this.id]}}&#10003;{{/if}}</span>
+                <span class="multiselect-name">{{this.name}}</span>
+                <span class="multiselect-count">{{this.count}}</span>
+              </div>
+              {{/each}}
+            </div>
+            {{/if}}
+          </div>
+        </div>
+
+        <div class="filter-group scatter-screentype-group">
+          <div class="filter-label">Screen Type</div>
+          <div class="multiselect" on-click="@this.toggleScatterScreenTypeDropdown()">
+            <div class="multiselect-display filter-select">{{@this.scatterScreenTypeLabel()}}</div>
+            {{#if scatterScreenTypeOpen}}
+            <div class="multiselect-dropdown" on-click="event.stopPropagation()">
+              {{#if scatterScreenTypes.length}}
+              <div class="multiselect-item multiselect-clear" on-click="@this.clearScatterScreenTypes()">Clear All</div>
+              {{/if}}
+              {{#each vocabs.screen_types}}
+              <div class="multiselect-item" on-click="@this.toggleScatterScreenType(this)">
+                <span class="multiselect-check {{#if scatterScreenTypeSelected[this]}}checked{{/if}}">{{#if scatterScreenTypeSelected[this]}}&#10003;{{/if}}</span>
+                <span class="multiselect-name">{{this}}</span>
+              </div>
+              {{/each}}
+            </div>
+            {{/if}}
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-label">Mood</div>
+          <select class="filter-select" value="{{scatterMood}}" on-change="@this.applyScatterFilters()">
+            <option value="">All Moods</option>
+            {{#each vocabs.design_moods}}
+            <option value="{{this}}">{{this}}</option>
+            {{/each}}
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-label">Bucket Overlay</div>
+          <select class="filter-select" value="{{scatterBucketId}}" on-change="@this.applyScatterBucketOverlay()">
+            <option value="">None</option>
+            {{#each bucketList}}
+            <option value="{{this._id}}">{{this.name}} ({{this.count}})</option>
+            {{/each}}
+          </select>
+        </div>
+
+        <div class="scatter-presets">
+          {{#each scatterPresets}}
+          <button class="preset-pill {{#if this.x === scatterX && this.y === scatterY}}active{{/if}}" on-click="@this.setScatterPreset(this)">{{this.label}}</button>
+          {{/each}}
+        </div>
+      </div>
+    </div>
+
+    {{#if scatterLoading}}
+    <div class="loading">
+      <span class="loading-dot"></span>
+      <span class="loading-dot"></span>
+      <span class="loading-dot"></span>
+    </div>
+    {{else}}
+    <div class="scatter-container">
+      <canvas id="scatter-canvas"></canvas>
+    </div>
+    {{/if}}
+
+  </div>
+
+  {{#if clusterModal.visible}}
+  <div class="cluster-overlay" on-click="@this.handleOverlayClick(event)">
+    <div class="cluster-modal">
+      <div class="cluster-modal-header">
+        <div class="cluster-modal-title">
+          {{clusterModal.filtered.length}} screen{{clusterModal.filtered.length !== 1 ? 's' : ''}} at {{clusterModal.xLabel}}: {{clusterModal.xVal}}, {{clusterModal.yLabel}}: {{clusterModal.yVal}}
+        </div>
+        <div class="cluster-industry-pills">
+          {{#each clusterModal.industries}}
+          <button class="cluster-industry-pill {{#if clusterModal.selectedMap[this.id]}}active{{/if}}" on-click="@this.toggleClusterIndustry(this.id)">
+            <span class="cluster-pill-check">{{#if clusterModal.selectedMap[this.id]}}&#10003;{{/if}}</span>
+            {{this.name}}: {{this.count}}
+          </button>
+          {{/each}}
+        </div>
+        <button class="btn btn-secondary" on-click="@this.openBucketModalFromCluster()">{{#if clusterSelectMode}}Add Selected to Bucket{{else}}Add to Bucket{{/if}}</button>
+        <button class="cluster-modal-close" on-click="@this.closeClusterModal()">&times;</button>
+      </div>
+      <div class="cluster-modal-body">
+        {{#if clusterSelectMode}}
+        <div class="selection-bar">
+          <span class="selection-count">{{clusterSelectedIds.size}} selected</span>
+          <button class="btn btn-secondary" on-click="@this.openBucketModalFromCluster()">Add to Bucket</button>
+          <button class="btn btn-ghost" on-click="@this.clearClusterSelection()">Cancel</button>
+        </div>
+        {{/if}}
+        {{#if clusterModal.filtered.length === 0}}
+        <div class="empty-state">
+          <div class="empty-state-title">No screens match this filter</div>
+        </div>
+        {{else}}
+        <div class="screen-grid">
+          {{#each clusterModal.filtered}}
+          <div class="screen-card {{~/clusterSelectedIds.has(this.id) ? 'is-selected' : ''}}" on-click="@this.handleClusterCardClick(this.id, event)">
+            <div class="screen-card-image">
+              <img src="{{this.image_url}}" alt="{{this.id}}" loading="lazy">
+            </div>
+            <div class="screen-card-body">
+              <div class="screen-card-id">{{this.id}}</div>
+              <div class="screen-card-meta">
+                <span class="pill pill-industry">{{this.industryLabel}}</span>
+                {{#if this.screen_type}}<span class="pill pill-neutral">{{this.screen_type}}</span>{{/if}}
+              </div>
+            </div>
+          </div>
+          {{/each}}
+        </div>
+        {{/if}}
+      </div>
+    </div>
+  </div>
+  {{/if}}
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="frontend/js/lib/ractive.min.js"></script>
+<script src="frontend/js/app.js"></script>
+
+</body>
+</html>

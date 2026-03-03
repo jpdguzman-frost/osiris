@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "osiris-web",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["gcash-intelligence/server.js"],
+      "port": 3000
+    }
+  ]
+}

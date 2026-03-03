@@ -1,0 +1,17 @@
+node_modules/
+.env
+.DS_Store
+*.tmp
+
+# Pipeline data (large, regenerable)
+gcash-intelligence/data/screens/
+gcash-intelligence/data/analysis/
+gcash-intelligence/data/synthesis/
+gcash-intelligence/data/patterns/
+gcash-intelligence/data/briefs/
+gcash-intelligence/data/_screens/
+gcash-intelligence/data/screens.bk/
+gcash-intelligence/output/
+
+# Backups
+*.bk

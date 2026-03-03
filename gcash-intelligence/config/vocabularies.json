@@ -1,0 +1,45 @@
+{
+  "style_tags": [
+    "minimal", "clean", "editorial", "brutalist", "organic", "geometric", "retro",
+    "futuristic", "playful", "corporate", "luxury", "utilitarian", "illustrative",
+    "photographic", "glassmorphism", "neumorphism", "flat", "skeuomorphic",
+    "monochrome", "vibrant", "pastel", "dark_ui", "light_ui", "gradient_heavy",
+    "card_based", "data_viz", "typographic", "icon_driven", "image_forward",
+    "whitespace_rich", "dense_info", "rounded", "angular", "shadowed", "borderless",
+    "layered", "modular", "asymmetric", "grid_strict", "animated_feel"
+  ],
+  "layout_types": [
+    "single_column", "two_column", "grid", "masonry", "hero_detail",
+    "dashboard", "list_feed", "card_grid", "split_screen", "full_bleed",
+    "editorial", "wizard_flow", "tab_sections", "sidebar_content", "floating_panels"
+  ],
+  "design_moods": [
+    "calm", "energetic", "confident", "playful", "serious", "premium", "friendly", "clinical"
+  ],
+  "typeface_classes": [
+    "geometric_sans", "humanist_sans", "neo_grotesque", "slab_serif", "modern_serif", "monospace", "display"
+  ],
+  "color_strategies": [
+    "monochromatic", "analogous", "complementary", "triadic", "neutral_plus_accent", "duotone"
+  ],
+  "color_temps": [
+    "warm", "cool", "neutral", "mixed"
+  ],
+  "screen_types": [
+    "home", "dashboard", "product_detail", "product_list", "checkout", "payment",
+    "settings", "profile", "onboarding", "login", "sign_in_sign_up", "search", "chat", "map", "registration",
+    "transaction_history", "notification", "modal_sheet", "empty_state", "error", "splash","otp", "get_started", "passcode"
+  ],
+  "platforms": [
+    "ios", "android", "web_desktop", "web_mobile", "tablet", "wearable", "tv", "unknown"
+  ],
+  "density_feels": [
+    "minimal", "balanced", "information_rich", "dense"
+  ],
+  "type_scales": [
+    "tight", "moderate", "generous", "dramatic"
+  ],
+  "weight_biases": [
+    "light", "regular", "medium", "bold"
+  ]
+}

@@ -1,0 +1,180 @@
+{
+  "industries": [
+    {
+      "id": "automotive",
+      "name": "Automotive & EV Digital Cockpits",
+      "search_queries": [
+        "Mercedes MBUX Hyperscreen UI interface",
+        "Rivian R1 dashboard interface design",
+        "Porsche Taycan digital cockpit",
+        "Polestar infotainment UI design",
+        "Lucid Motors dashboard UX",
+        "Tesla Model S yoke screen interface",
+        "BMW iDrive 8 screen design",
+        "Audi virtual cockpit interface",
+        "Hyundai Ioniq 5 dashboard UI",
+        "EV charging station interface design",
+        "automotive HMI dark mode dashboard",
+        "car dashboard digital instrument cluster",
+        "automotive head unit UI design 2024",
+        "electric vehicle infotainment screen",
+        "connected car interface design case study",
+        "automotive UI typography hierarchy",
+        "car navigation screen minimal design",
+        "vehicle dashboard ambient lighting UI",
+        "Volvo EX90 screen interface",
+        "Genesis GV60 infotainment design"
+      ],
+      "web_targets": [
+        "https://www.mercedes-benz.com/en/innovation/mbux/",
+        "https://rivian.com",
+        "https://www.polestar.com"
+      ]
+    },
+    {
+      "id": "luxury",
+      "name": "Luxury, Fashion & Hospitality Digital",
+      "search_queries": [
+        "Aman Resorts website design",
+        "Bottega Veneta website interface",
+        "Aesop website minimal design",
+        "Issey Miyake website typography",
+        "Apple iPhone product page design",
+        "Hermes digital website interface",
+        "Cartier website luxury e-commerce",
+        "Four Seasons hotel booking interface",
+        "Ace Hotel website design",
+        "luxury fashion e-commerce UI design",
+        "luxury hotel booking interface minimal",
+        "editorial fashion website layout",
+        "high-end brand website whitespace",
+        "luxury brand mobile app interface",
+        "premium hospitality booking flow",
+        "Aman app interface design",
+        "Dior website product page",
+        "Celine website minimal design",
+        "luxury brand typography digital",
+        "high fashion e-commerce mobile UI"
+      ],
+      "web_targets": [
+        "https://www.aman.com",
+        "https://www.aesop.com",
+        "https://www.bottegaveneta.com",
+        "https://www.apple.com/iphone",
+        "https://www.cartier.com",
+        "https://www.fourseasons.com"
+      ]
+    },
+    {
+      "id": "health",
+      "name": "Health & Wellness Technology",
+      "search_queries": [
+        "Oura Ring app dashboard UI",
+        "Whoop app dashboard design",
+        "Apple Health app interface",
+        "Headspace app UI design",
+        "Eight Sleep app interface dark mode",
+        "Calm app meditation interface",
+        "Fitbit app dashboard 2024",
+        "Peloton app home screen UI",
+        "health app data visualization design",
+        "wellness app dark mode dashboard",
+        "fitness tracker app dashboard UI",
+        "health data progressive disclosure UI",
+        "Oura sleep score screen",
+        "Apple Watch health metrics UI",
+        "health app color palette calming",
+        "wellness dashboard data cards",
+        "meditation app minimal interface",
+        "fitness app achievement celebration UI",
+        "health app onboarding flow",
+        "wearable health data visualization"
+      ],
+      "web_targets": []
+    },
+    {
+      "id": "aerospace",
+      "name": "Aerospace, Space Tech & Mission Control",
+      "search_queries": [
+        "SpaceX launch telemetry UI overlay",
+        "NASA JPL mission control dashboard",
+        "Rocket Lab livestream telemetry UI",
+        "FlightAware app interface design",
+        "Flightradar24 UI dark mode",
+        "SpaceX Dragon cockpit interface",
+        "Boeing Starliner cockpit display",
+        "aerospace dashboard data visualization",
+        "mission control screen design",
+        "space telemetry interface design",
+        "flight instrument digital display",
+        "satellite tracking interface UI",
+        "aerospace HUD design minimal",
+        "SpaceX Starship launch UI",
+        "aviation glass cockpit digital",
+        "air traffic control interface design",
+        "space station monitoring dashboard",
+        "rocket telemetry data display",
+        "orbital mechanics visualization UI",
+        "flight management system interface"
+      ],
+      "web_targets": [
+        "https://www.flightaware.com",
+        "https://www.flightradar24.com"
+      ]
+    },
+    {
+      "id": "gaming",
+      "name": "Gaming & Premium Entertainment Platforms",
+      "search_queries": [
+        "PS5 home screen UI design",
+        "Xbox Series X dashboard interface",
+        "Apple TV app interface design",
+        "Nintendo Switch home UI minimal",
+        "Spotify desktop app UI 2024",
+        "Steam Deck interface design",
+        "Apple Music app interface",
+        "Netflix UI home screen redesign",
+        "gaming console menu card-based UI",
+        "entertainment app navigation design",
+        "streaming platform content layout",
+        "PlayStation Store UI design",
+        "Xbox game pass interface",
+        "Spotify dynamic color UI",
+        "gaming UI transition animation",
+        "premium streaming app dark mode",
+        "gaming dashboard spatial depth",
+        "entertainment app hero section design",
+        "console UI settings screen minimal",
+        "music app visualization interface"
+      ],
+      "web_targets": []
+    },
+    {
+      "id": "fintech",
+      "name": "Global Fintech Baseline",
+      "search_queries": [
+        "Revolut app home screen dark mode",
+        "Nubank app interface design",
+        "Alipay app home screen UI",
+        "WeChat Pay interface design",
+        "Grab financial services app UI",
+        "M-Pesa app interface design",
+        "Cash App home screen UI",
+        "Mercado Pago app interface",
+        "Monzo app dashboard design",
+        "N26 app interface banking",
+        "Maya Philippines app UI",
+        "Touch n Go eWallet interface",
+        "GoPay Indonesia app design",
+        "Wise app transfer interface",
+        "Venmo app home screen",
+        "fintech super app navigation UI",
+        "neobank dashboard home screen",
+        "digital wallet interface design 2024",
+        "Revolut crypto trading UI",
+        "mobile banking app card-based layout"
+      ],
+      "web_targets": []
+    }
+  ]
+}
