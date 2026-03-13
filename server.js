@@ -267,6 +267,26 @@ router.get('/api/scatter', async (req, res) => {
   }
 });
 
+// ─── API: Benchmark ─────────────────────────────────────────────────────────
+
+router.get('/api/benchmark', async (req, res) => {
+  try {
+    const { group_type = 'brand', group_value, benchmark = 'global', tab = 'core', benchmark_value } = req.query;
+    if (!group_value) return res.status(400).json({ error: 'group_value required' });
+
+    const data = await store.getBenchmarkData({
+      groupType: group_type,
+      groupValue: group_value,
+      benchmark,
+      tab,
+      benchmarkValue: benchmark_value,
+    });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── API: Delete Screens ─────────────────────────────────────────────────────
 
 router.delete('/api/screens', async (req, res) => {

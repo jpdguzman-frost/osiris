@@ -9,6 +9,66 @@ const BASE = (() => {
   return '';
 })();
 
+// ─── Benchmark Constants ────────────────────────────────────────────────────
+
+const BENCHMARK_LABELS = { global: 'Global Average', industry: 'Industry Average', top10: 'Top 10%', specific: 'Benchmark' };
+
+const FIELD_DESCRIPTIONS = {
+  color_restraint: 'How well the design limits its color palette. High-scoring screens use fewer, more intentional colors — creating a clean, focused feel rather than a busy, cluttered one.',
+  hierarchy_clarity: 'How easy it is to tell what\'s most important on the screen. Great hierarchy means your eye naturally flows from the primary action to supporting content without confusion.',
+  glanceability: 'How quickly you can understand the screen\'s purpose at a glance. High scores mean users can instantly grasp what the screen is about and what to do next.',
+  density: 'How well the screen balances the amount of content with breathing room. High scores mean the layout feels comfortably full — not cramped, not empty.',
+  whitespace_ratio: 'How effectively the design uses empty space to separate and frame content. Good whitespace makes a screen feel calm and organized, not wasted or sparse.',
+  brand_confidence: 'How strongly the design communicates a recognizable brand identity. High scores show clear, consistent use of brand colors, typography, and visual language.',
+  calm_confident: 'How composed and assured the design feels. A calm-confident screen exudes trust and authority through restrained, purposeful design choices.',
+  bold_forward: 'How progressive and daring the design is. Bold-forward screens push boundaries with strong visual statements, unconventional layouts, or striking color use.',
+  overall_quality: 'The overall design quality combining all factors — layout, typography, color, spacing, and visual polish. This is the holistic "how good does this look?" score.',
+  calm_energetic: 'Where the design sits between serene and lively. Negative means calm and meditative; positive means dynamic and energetic.',
+  confident_tentative: 'Whether the design feels decisive or uncertain. Negative means bold and self-assured; positive means cautious and exploratory.',
+  forward_conservative: 'How modern versus traditional the design is. Negative means cutting-edge and experimental; positive means safe and conventional.',
+  premium_accessible: 'Whether the design targets a luxury or mass-market audience. Negative means exclusive and refined; positive means approachable and everyday.',
+  warm_clinical: 'The emotional temperature of the design. Negative means friendly and human; positive means precise and institutional.',
+};
+
+// Human-readable explanations for what scoring above/below benchmark means per field
+var FIELD_INSIGHT_ABOVE = {
+  color_restraint: 'uses color more intentionally — fewer, more purposeful tones that keep the interface feeling clean',
+  hierarchy_clarity: 'makes it easier for users to find what matters — the visual priority is clearer and more intuitive',
+  glanceability: 'communicates its purpose faster — users need less time to understand what a screen does',
+  density: 'packs content more efficiently — screens feel fuller without becoming overwhelming',
+  whitespace_ratio: 'gives content more breathing room — layouts feel more open and less crowded',
+  brand_confidence: 'projects a stronger brand identity — colors, type, and visual language are more recognizable',
+  calm_confident: 'feels more composed and trustworthy — the design conveys authority without being loud',
+  bold_forward: 'takes more creative risks — the design feels more modern and visually distinctive',
+  overall_quality: 'delivers higher overall design quality — screens look and feel more polished end-to-end',
+  calm_energetic: 'leans more energetic and dynamic — the interface feels livelier and more engaging',
+  confident_tentative: 'appears more cautious and exploratory — less visually assertive in its design choices',
+  forward_conservative: 'plays it safer with more traditional design patterns — a more familiar, conventional look',
+  premium_accessible: 'feels more approachable and everyday — designed for a broader, mass-market audience',
+  warm_clinical: 'feels more clinical and institutional — precise and structured, less emotionally warm',
+};
+
+var FIELD_INSIGHT_BELOW = {
+  color_restraint: 'uses more colors or less restraint in its palette — which can feel busy or less cohesive',
+  hierarchy_clarity: 'makes it harder for users to find what\'s important — the visual priority is less clear',
+  glanceability: 'requires more effort to understand — users need extra time to figure out what a screen does',
+  density: 'feels either too sparse or too packed — the content balance isn\'t quite right',
+  whitespace_ratio: 'gives content less breathing room — layouts may feel tighter or more compressed',
+  brand_confidence: 'has a weaker brand presence — the visual identity is less distinctive or consistent',
+  calm_confident: 'feels less composed — the design may come across as uncertain or less assured',
+  bold_forward: 'plays it safer visually — less creative risk-taking, which can mean blending in with competitors',
+  overall_quality: 'shows lower overall design polish — there\'s room to improve typography, spacing, and visual consistency',
+  calm_energetic: 'leans calmer and more subdued — the interface feels quieter, more meditative',
+  confident_tentative: 'appears bolder and more decisive — the design makes stronger visual statements',
+  forward_conservative: 'feels more experimental and cutting-edge — pushing boundaries with modern patterns',
+  premium_accessible: 'leans more premium and exclusive — designed to feel high-end and refined',
+  warm_clinical: 'feels warmer and more human — friendlier tone, more emotionally approachable',
+};
+
+function formatFieldName(f) {
+  return f.replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+}
+
 // ─── API Client ──────────────────────────────────────────────────────────────
 
 const api = {
@@ -24,6 +84,7 @@ const api = {
   vocabularies: () => api.get('/api/vocabularies'),
   similar:      (id, p) => api.get('/api/similar/' + encodeURIComponent(id) + '?' + new URLSearchParams(p)),
   scatter:      (p) => api.get('/api/scatter?' + new URLSearchParams(p)),
+  benchmark:    (p) => api.get('/api/benchmark?' + new URLSearchParams(p)),
   brands:       (p) => api.get('/api/brands?' + new URLSearchParams(p || {})),
   buckets:      () => api.get('/api/buckets'),
   bucket:       (id, p) => api.get('/api/buckets/' + encodeURIComponent(id) + '?' + new URLSearchParams(p)),
@@ -234,7 +295,16 @@ function getRoute() {
   if (hash === '/buckets') return { view: 'buckets' };
   if (hash.startsWith('/bucket/')) return { view: 'bucketDetail', id: decodeURIComponent(hash.slice(8)) };
   if (hash === '/scatter' || hash.startsWith('/scatter')) return { view: 'scatter' };
+  if (hash === '/benchmark' || hash.startsWith('/benchmark')) return { view: 'benchmark' };
   return { view: 'dashboard' };
+}
+
+// Wait for DOM elements to appear after Ractive render, then call back
+function waitForElements(ids, callback, attempts) {
+  if (attempts === undefined) attempts = 0;
+  var elements = ids.map(function (id) { return document.getElementById(id); });
+  if (elements.every(Boolean)) callback();
+  else if (attempts < 20) setTimeout(function () { waitForElements(ids, callback, attempts + 1); }, 50);
 }
 
 // ─── Ractive App ─────────────────────────────────────────────────────────────
@@ -249,6 +319,7 @@ const app = new Ractive({
     buckets: Ractive.parse(document.getElementById('buckets-template').textContent),
     bucketDetail: Ractive.parse(document.getElementById('bucket-detail-template').textContent),
     scatter: Ractive.parse(document.getElementById('scatter-template').textContent),
+    benchmark: Ractive.parse(document.getElementById('benchmark-template').textContent),
   },
 
   data: function () {
@@ -307,6 +378,8 @@ const app = new Ractive({
 
       // Helpers exposed to templates
       formatCost: function (v) { return v != null ? v.toFixed(2) : '0.00'; },
+      formatFieldName: formatFieldName,
+      fieldDescription: function (f) { return FIELD_DESCRIPTIONS[f] || ''; },
       brandDisplayName: brandDisplayName,
       scoreClass: scoreClass,
       similarityClass: similarityClass,
@@ -351,6 +424,20 @@ const app = new Ractive({
       scatterCount: 0,
       scatterLoading: false,
       scatterPresets: SCATTER_PRESETS,
+
+      // Benchmark
+      benchmarkGroups: [{ type: 'brand', value: '' }],
+      benchmarkData: null,
+      benchmarkLoading: false,
+      benchmarkTab: 'core',
+      benchmarkBenchmark: 'global',
+      benchmarkBenchmarkValue: '',
+      benchmarkInsights: null,
+      benchmarkNarrative: '',
+      benchmarkGapRows: [],
+      benchmarkEvidenceField: null,
+      benchmarkEvidenceScreens: [],
+      benchmarkEvidenceLoading: false,
 
       // Buckets
       bucketList: [],
@@ -697,15 +784,7 @@ const app = new Ractive({
 
       // Wait for Ractive to render the canvas, then build chart
       const self = this;
-      const waitForCanvas = (attempts) => {
-        const canvas = document.getElementById('scatter-canvas');
-        if (canvas) {
-          self._renderScatterChart(data);
-        } else if (attempts < 20) {
-          setTimeout(() => waitForCanvas(attempts + 1), 50);
-        }
-      };
-      setTimeout(() => waitForCanvas(0), 0);
+      setTimeout(() => waitForElements(['scatter-canvas'], () => self._renderScatterChart(data)), 0);
     } catch (err) {
       console.error('Scatter load error:', err);
       if (isFirstLoad) this.set('scatterLoading', false);
@@ -1680,6 +1759,241 @@ const app = new Ractive({
     }
   },
 
+  // ── Benchmark ──────────────────────────────────────────────────────
+
+  BENCHMARK_COLORS: [
+    { border: 'rgba(59, 130, 246, 1)', bg: 'rgba(59, 130, 246, 0.15)' },
+    { border: 'rgba(239, 68, 68, 1)', bg: 'rgba(239, 68, 68, 0.15)' },
+    { border: 'rgba(16, 185, 129, 1)', bg: 'rgba(16, 185, 129, 0.15)' },
+    { border: 'rgba(245, 158, 11, 1)', bg: 'rgba(245, 158, 11, 0.15)' },
+  ],
+
+  _benchmarkGroupLabel: function (group) {
+    if (group.type === 'brand') return brandDisplayName(group.value);
+    if (group.type === 'bucket') {
+      var b = this.get('bucketList').find(function (x) { return x._id === group.value; });
+      return b ? b.name : group.value;
+    }
+    return formatFieldName(group.value);
+  },
+
+  addBenchmarkGroup: function () {
+    const groups = this.get('benchmarkGroups');
+    if (groups.length >= 4) return;
+    this.push('benchmarkGroups', { type: 'brand', value: '' });
+  },
+
+  removeBenchmarkGroup: function (idx) {
+    const groups = this.get('benchmarkGroups');
+    if (groups.length <= 1) return;
+    this.splice('benchmarkGroups', idx, 1);
+  },
+
+  loadBenchmark: async function () {
+    const groups = this.get('benchmarkGroups').filter(function (g) { return g.value; });
+    if (!groups.length) return;
+    this.set({ benchmarkLoading: true, benchmarkInsights: null, benchmarkNarrative: '', benchmarkGapRows: [], benchmarkEvidenceField: null, benchmarkEvidenceScreens: [] });
+    try {
+      const tab = this.get('benchmarkTab');
+      const benchmark = this.get('benchmarkBenchmark');
+      const benchmarkValue = this.get('benchmarkBenchmarkValue');
+
+      // Parallel API calls for all groups
+      const results = await Promise.all(groups.map(function (g) {
+        var params = { group_type: g.type, group_value: g.value, benchmark: benchmark, tab: tab };
+        if (benchmark === 'specific' && benchmarkValue) params.benchmark_value = benchmarkValue;
+        return api.benchmark(params);
+      }));
+
+      // Attach group metadata to results
+      results.forEach(function (r, i) { r._group = groups[i]; });
+
+      this.set({ benchmarkData: results, benchmarkLoading: false });
+
+      // Generate insights (Slice 6)
+      this._generateBenchmarkInsights(results);
+
+      var self = this;
+      setTimeout(function () { waitForElements(['radar-canvas'], function () { self._renderBenchmarkCharts(results); }); }, 0);
+    } catch (err) {
+      console.error('Benchmark load error:', err);
+      this.set('benchmarkLoading', false);
+    }
+  },
+
+  _generateBenchmarkInsights: function (results) {
+    if (!results.length) return;
+    var first = results[0];
+    var fields = first.fields;
+    var benchLabel = BENCHMARK_LABELS[this.get('benchmarkBenchmark')] || 'Benchmark';
+    var self = this;
+
+    // Build gap rows for the gap list (first group only)
+    var maxAbsDelta = Math.max.apply(null, first.deltas.map(function (d) { return Math.abs(d); })) || 1;
+    var gapRows = fields.map(function (f, i) {
+      return {
+        label: formatFieldName(f),
+        delta: first.deltas[i].toFixed(2),
+        barPct: Math.round((Math.abs(first.deltas[i]) / maxAbsDelta) * 100),
+        groupAvg: first.group.averages[i].toFixed(1),
+        benchAvg: first.benchmark.averages[i].toFixed(1),
+        idx: i,
+      };
+    });
+    this.set('benchmarkGapRows', gapRows);
+
+    // Build stat-card insights per group
+    var insights = [];
+    results.forEach(function (r) {
+      var label = self._benchmarkGroupLabel(r._group);
+      var deltas = r.deltas;
+      var maxDelta = -Infinity, maxIdx = 0, minDelta = Infinity, minIdx = 0;
+      var closestDelta = Infinity, closestIdx = 0;
+      deltas.forEach(function (d, i) {
+        if (d > maxDelta) { maxDelta = d; maxIdx = i; }
+        if (d < minDelta) { minDelta = d; minIdx = i; }
+        if (Math.abs(d) < closestDelta) { closestDelta = Math.abs(d); closestIdx = i; }
+      });
+      if (maxDelta > 0) insights.push({ cls: 'positive', field: formatFieldName(fields[maxIdx]), delta: '+' + maxDelta.toFixed(2), label: label });
+      if (minDelta < 0) insights.push({ cls: 'negative', field: formatFieldName(fields[minIdx]), delta: minDelta.toFixed(2), label: label });
+    });
+    this.set('benchmarkInsights', insights);
+
+    // Build narrative (executive-friendly flowing text)
+    var label = this._benchmarkGroupLabel(first._group);
+    var deltas = first.deltas;
+    var maxDelta = -Infinity, maxIdx = 0, minDelta = Infinity, minIdx = 0;
+    var closestDelta = Infinity, closestIdx = 0;
+    deltas.forEach(function (d, i) {
+      if (d > maxDelta) { maxDelta = d; maxIdx = i; }
+      if (d < minDelta) { minDelta = d; minIdx = i; }
+      if (Math.abs(d) < closestDelta) { closestDelta = Math.abs(d); closestIdx = i; }
+    });
+
+    var positiveCount = deltas.filter(function (d) { return d > 0; }).length;
+    var narrative = 'Compared to the ' + benchLabel + ', <strong>' + label + '</strong> ';
+    if (positiveCount > fields.length / 2) {
+      narrative += '<span class="bm-nar-positive">outperforms</span> on most design dimensions. ';
+    } else if (positiveCount < fields.length / 2) {
+      narrative += '<span class="bm-nar-negative">falls behind</span> on most design dimensions. ';
+    } else {
+      narrative += 'performs <span class="bm-nar-neutral">on par</span> across design dimensions. ';
+    }
+    narrative += 'Here\'s what that means in practice:';
+
+    // Strength paragraph
+    if (maxDelta > 0) {
+      var strongField = fields[maxIdx];
+      narrative += '</p><p class="bm-nar-paragraph"><span class="bm-nar-label">Biggest strength:</span> ';
+      narrative += '<strong>' + label + '</strong> ' + FIELD_INSIGHT_ABOVE[strongField];
+      narrative += ' <span class="bm-nar-positive">(+' + maxDelta.toFixed(1) + ' above ' + benchLabel + ')</span>.';
+    }
+
+    // Weakness paragraph
+    if (minDelta < 0) {
+      var weakField = fields[minIdx];
+      narrative += '</p><p class="bm-nar-paragraph"><span class="bm-nar-label">Biggest gap:</span> ';
+      narrative += '<strong>' + label + '</strong> ' + FIELD_INSIGHT_BELOW[weakField];
+      narrative += ' <span class="bm-nar-negative">(' + minDelta.toFixed(1) + ' below ' + benchLabel + ')</span>.';
+    }
+
+    // Closest to baseline
+    var closestField = fields[closestIdx];
+    var closestVal = deltas[closestIdx];
+    narrative += '</p><p class="bm-nar-paragraph"><span class="bm-nar-label">Closest to baseline:</span> ';
+    narrative += '<span class="bm-nar-neutral">' + formatFieldName(closestField) + '</span> is nearly identical to the ' + benchLabel;
+    narrative += ' <span class="bm-nar-neutral">(Δ ' + Math.abs(closestVal).toFixed(1) + ')</span> — meaning performance here is right where you\'d expect.';
+
+    this.set('benchmarkNarrative', narrative);
+  },
+
+  loadBenchmarkEvidence: async function (fieldIdx) {
+    var results = this.get('benchmarkData');
+    if (!results || !results.length) return;
+    var first = results[0];
+    var field = first.fields[fieldIdx];
+    var group = first._group;
+
+    this.set({ benchmarkEvidenceField: field, benchmarkEvidenceLoading: true, benchmarkEvidenceScreens: [] });
+    try {
+      if (group.type === 'bucket') {
+        // Bucket evidence not supported — /api/screens doesn't filter by bucket
+        this.set('benchmarkEvidenceLoading', false);
+        return;
+      }
+      var params = { sort: field, limit: 8, order: 'desc' };
+      if (group.type === 'brand') params.brand = group.value;
+      else if (group.type === 'industry') params.industry = group.value;
+      var data = await api.screens(params);
+      this.set({ benchmarkEvidenceScreens: data.screens || [], benchmarkEvidenceLoading: false });
+    } catch (err) {
+      console.error('Evidence load error:', err);
+      this.set('benchmarkEvidenceLoading', false);
+    }
+  },
+
+  closeBenchmarkEvidence: function () {
+    this.set({ benchmarkEvidenceField: null, benchmarkEvidenceScreens: [] });
+  },
+
+  _renderBenchmarkCharts: function (results) {
+    var radarCanvas = document.getElementById('radar-canvas');
+    if (!radarCanvas) return;
+
+    if (this._radarChart) this._radarChart.destroy();
+
+    var isSpectrum = this.get('benchmarkTab') === 'spectrum';
+    var first = results[0];
+    var labels = first.fields.map(formatFieldName);
+    var benchmarkLabel = BENCHMARK_LABELS[this.get('benchmarkBenchmark')] || 'Benchmark';
+    var colors = this.BENCHMARK_COLORS;
+    var self = this;
+
+    var datasets = results.map(function (r, i) {
+      var c = colors[i % colors.length];
+      return {
+        label: self._benchmarkGroupLabel(r._group) + ' (' + r.group.count + ')',
+        data: r.group.averages,
+        borderColor: c.border,
+        backgroundColor: c.bg,
+        borderWidth: 2,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+      };
+    });
+    datasets.push({
+      label: benchmarkLabel + ' (' + first.benchmark.count + ')',
+      data: first.benchmark.averages,
+      borderColor: 'rgba(156, 163, 175, 1)',
+      backgroundColor: 'rgba(156, 163, 175, 0.08)',
+      borderWidth: 2,
+      borderDash: [6, 4],
+      pointRadius: 3,
+    });
+
+    this._radarChart = new Chart(radarCanvas, {
+      type: 'radar',
+      data: { labels: labels, datasets: datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          r: {
+            min: isSpectrum ? -5 : 0,
+            max: isSpectrum ? 5 : 10,
+            ticks: { stepSize: isSpectrum ? 2.5 : 2, backdropColor: 'transparent', font: { size: 11 } },
+            pointLabels: { font: { size: 12, weight: '500' } },
+            grid: { color: 'rgba(0,0,0,0.05)' },
+            angleLines: { color: 'rgba(0,0,0,0.05)' },
+          },
+        },
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 12 }, usePointStyle: true, padding: 20 } },
+        },
+      },
+    });
+  },
+
   // ── Scatter Bucket Overlay ─────────────────────────────────────────
 
   applyScatterBucketOverlay: async function () {
@@ -1711,6 +2025,11 @@ function handleRoute() {
     app._scatterChart = null;
   }
 
+  // Clean up benchmark charts when leaving benchmark view
+  if (prevView === 'benchmark' && route.view !== 'benchmark') {
+    if (app._radarChart) { app._radarChart.destroy(); app._radarChart = null; }
+  }
+
   app.set('currentView', route.view);
   app.set('screenId', route.id || null);
 
@@ -1736,6 +2055,19 @@ function handleRoute() {
     app.set('bucketSelectMode', false);
     app.set('bucketPage', 1);
     app.loadBucketDetail(route.id);
+  }
+  if (route.view === 'benchmark') {
+    // Ensure industries, brands, and buckets are loaded (shared with other views)
+    if (!app.get('industries').length) {
+      api.industries().then(data => {
+        app.set('industries', data.industries.filter(i => i.count > 0).sort((a, b) => b.count - a.count));
+      }).catch(() => {});
+    }
+    if (!app.get('bucketList').length) {
+      api.buckets().then(data => {
+        app.set('bucketList', data.buckets || []);
+      }).catch(() => {});
+    }
   }
   if (route.view === 'scatter') {
     // Ensure industries are available for the filter dropdown

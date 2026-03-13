@@ -31,6 +31,7 @@
       <div class="nav-link {{#if currentView === 'gallery'}}active{{/if}}" on-click="@this.navigate('/gallery')">Gallery</div>
       <div class="nav-link {{#if currentView === 'buckets' || currentView === 'bucketDetail'}}active{{/if}}" on-click="@this.navigate('/buckets')">Buckets</div>
       <div class="nav-link {{#if currentView === 'scatter'}}active{{/if}}" on-click="@this.navigate('/scatter')">Scatter</div>
+      <div class="nav-link {{#if currentView === 'benchmark'}}active{{/if}}" on-click="@this.navigate('/benchmark')">Benchmark</div>
     </div>
     <div class="nav-spacer"></div>
     {{#if stats}}
@@ -49,6 +50,8 @@
       {{>bucketDetail}}
     {{elseif currentView === 'scatter'}}
       {{>scatter}}
+    {{elseif currentView === 'benchmark'}}
+      {{>benchmark}}
     {{elseif currentView === 'detail'}}
       {{>detail}}
     {{/if}}
@@ -1180,6 +1183,239 @@
     </div>
   </div>
   {{/if}}
+</script>
+
+<!-- ─── Benchmark Template ──────────────────────────────────────────── -->
+<script id="benchmark-template" type="text/ractive">
+  <div class="benchmark-page">
+    <div class="benchmark-toolbar">
+      <div class="benchmark-toolbar-title">
+        <h1 class="scatter-title">Benchmark</h1>
+      </div>
+
+      <div class="benchmark-toolbar-controls">
+        <!-- Group pills -->
+        <div class="benchmark-groups">
+          {{#each benchmarkGroups:i}}
+          <div class="benchmark-group-pill" style="border-left: 3px solid {{@this.BENCHMARK_COLORS[i % 4].border}}">
+            <select class="filter-select filter-select-sm" value="{{this.type}}">
+              <option value="brand">Brand</option>
+              <option value="industry">Industry</option>
+              <option value="bucket">Bucket</option>
+            </select>
+            {{#if this.type === 'brand'}}
+            <select class="filter-select filter-select-sm" value="{{this.value}}">
+              <option value="">Select…</option>
+              {{#each ~/brands}}
+              <option value="{{this.slug}}">{{brandDisplayName(this.slug)}}</option>
+              {{/each}}
+            </select>
+            {{elseif this.type === 'industry'}}
+            <select class="filter-select filter-select-sm" value="{{this.value}}">
+              <option value="">Select…</option>
+              {{#each ~/industries}}
+              <option value="{{this.id}}">{{this.name}}</option>
+              {{/each}}
+            </select>
+            {{elseif this.type === 'bucket'}}
+            <select class="filter-select filter-select-sm" value="{{this.value}}">
+              <option value="">Select…</option>
+              {{#each ~/bucketList}}
+              <option value="{{this._id}}">{{this.name}} ({{this.count}})</option>
+              {{/each}}
+            </select>
+            {{/if}}
+            {{#if ~/benchmarkGroups.length > 1}}
+            <button class="benchmark-group-remove" on-click="@this.removeBenchmarkGroup(i)">&times;</button>
+            {{/if}}
+          </div>
+          {{/each}}
+          {{#if benchmarkGroups.length < 4}}
+          <button class="btn btn-ghost btn-sm" on-click="@this.addBenchmarkGroup()">+ Group</button>
+          {{/if}}
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-label">Compare Against</div>
+          <select class="filter-select" value="{{benchmarkBenchmark}}">
+            <option value="global">Global Average</option>
+            <option value="industry">Industry Average</option>
+            <option value="top10">Top 10%</option>
+            <option value="specific">Specific…</option>
+          </select>
+        </div>
+
+        {{#if benchmarkBenchmark === 'specific'}}
+        <div class="filter-group">
+          <div class="filter-label">Benchmark Target</div>
+          <select class="filter-select" value="{{benchmarkBenchmarkValue}}">
+            <option value="">Select…</option>
+            <optgroup label="Brands">
+              {{#each brands}}
+              <option value="brand:{{this.slug}}">{{brandDisplayName(this.slug)}}</option>
+              {{/each}}
+            </optgroup>
+            <optgroup label="Industries">
+              {{#each industries}}
+              <option value="industry:{{this.id}}">{{this.name}}</option>
+              {{/each}}
+            </optgroup>
+            <optgroup label="Buckets">
+              {{#each bucketList}}
+              <option value="bucket:{{this._id}}">{{this.name}}</option>
+              {{/each}}
+            </optgroup>
+          </select>
+        </div>
+        {{/if}}
+
+        <div class="filter-group">
+          <div class="filter-label">Scores</div>
+          <div class="benchmark-tabs">
+            <button class="preset-pill {{#if benchmarkTab === 'core'}}active{{/if}}" on-click="@this.set('benchmarkTab', 'core')">Core</button>
+            <button class="preset-pill {{#if benchmarkTab === 'spectrum'}}active{{/if}}" on-click="@this.set('benchmarkTab', 'spectrum')">Spectrum</button>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" on-click="@this.loadBenchmark()">Compare</button>
+      </div>
+    </div>
+
+    {{#if benchmarkLoading}}
+    <div class="loading">
+      <span class="loading-dot"></span>
+      <span class="loading-dot"></span>
+      <span class="loading-dot"></span>
+    </div>
+    {{elseif benchmarkData}}
+    <div class="benchmark-editorial">
+
+      <!-- Stat cards -->
+      <div class="bm-stats-row">
+        {{#each benchmarkData}}
+        <div class="bm-stat-card">
+          <div class="bm-stat-label">{{@this._benchmarkGroupLabel(this._group)}}</div>
+          <div class="bm-stat-value">{{this.group.count}}</div>
+          <div class="bm-stat-sub">screens analyzed</div>
+        </div>
+        {{/each}}
+        <div class="bm-stat-card">
+          <div class="bm-stat-label">Benchmark</div>
+          <div class="bm-stat-value">{{benchmarkData[0].benchmark.count}}</div>
+          <div class="bm-stat-sub">screens in baseline</div>
+        </div>
+        {{#if benchmarkInsights}}
+        {{#each benchmarkInsights}}
+        {{#if this.cls === 'positive'}}
+        <div class="bm-stat-card bm-stat-positive">
+          <div class="bm-stat-label">Strongest</div>
+          <div class="bm-stat-value bm-val-positive">{{this.field}}</div>
+          <div class="bm-stat-sub">+{{this.delta}} vs benchmark</div>
+        </div>
+        {{/if}}
+        {{#if this.cls === 'negative'}}
+        <div class="bm-stat-card bm-stat-negative">
+          <div class="bm-stat-label">Biggest Gap</div>
+          <div class="bm-stat-value bm-val-negative">{{this.field}}</div>
+          <div class="bm-stat-sub">{{this.delta}} vs benchmark</div>
+        </div>
+        {{/if}}
+        {{/each}}
+        {{/if}}
+      </div>
+
+      <!-- Narrative insight -->
+      {{#if benchmarkNarrative}}
+      <div class="bm-narrative">
+        {{{benchmarkNarrative}}}
+      </div>
+      {{/if}}
+
+      <!-- Main content: Radar + Gap list -->
+      <div class="bm-main">
+        <div class="bm-radar-section">
+          <h3 class="bm-section-title">Score Profile</h3>
+          <div class="bm-radar-wrap">
+            <canvas id="radar-canvas"></canvas>
+          </div>
+        </div>
+        <div class="bm-gap-section">
+          <h3 class="bm-section-title">Gap Analysis</h3>
+          <div class="bm-gap-list">
+            {{#each benchmarkGapRows}}
+            <div class="bm-gap-row" on-click="@this.loadBenchmarkEvidence(this.idx)">
+              <div class="bm-gap-label">{{this.label}}</div>
+              <div class="bm-gap-bar-track">
+                <div class="bm-gap-bar {{#if this.delta >= 0}}bm-gap-pos{{else}}bm-gap-neg{{/if}}" style="width: {{this.barPct}}%; {{#if this.delta < 0}}margin-left: auto;{{/if}}"></div>
+              </div>
+              <div class="bm-gap-delta {{#if this.delta >= 0}}bm-val-positive{{else}}bm-val-negative{{/if}}">{{#if this.delta >= 0}}+{{/if}}{{this.delta}}</div>
+              <div class="bm-gap-scores">
+                <span class="bm-gap-group-score">{{this.groupAvg}}</span>
+                <span class="bm-gap-vs">vs</span>
+                <span class="bm-gap-bench-score">{{this.benchAvg}}</span>
+              </div>
+            </div>
+            {{/each}}
+          </div>
+          <canvas id="lollipop-canvas" style="display:none;"></canvas>
+        </div>
+      </div>
+
+      <!-- Evidence gallery -->
+      {{#if benchmarkData.length && benchmarkData[0].fields}}
+      <div class="bm-evidence-section">
+        <h3 class="bm-section-title">Evidence</h3>
+        <div class="bm-evidence-pills">
+          {{#each benchmarkData[0].fields:fi}}
+          <button class="preset-pill {{#if ~/benchmarkEvidenceField === this}}active{{/if}}" on-click="@this.loadBenchmarkEvidence(fi)">{{formatFieldName(this)}}</button>
+          {{/each}}
+          {{#if benchmarkEvidenceField}}
+          <button class="btn btn-ghost btn-sm" on-click="@this.closeBenchmarkEvidence()">Clear</button>
+          {{/if}}
+        </div>
+        {{#if benchmarkEvidenceField}}
+        <div class="bm-evidence-description">
+          <h4 class="bm-evidence-desc-title">{{formatFieldName(benchmarkEvidenceField)}}</h4>
+          <p class="bm-evidence-desc-text">{{fieldDescription(benchmarkEvidenceField)}}</p>
+        </div>
+        {{/if}}
+        {{#if benchmarkEvidenceLoading}}
+        <div class="loading" style="padding: var(--space-4);">
+          <span class="loading-dot"></span>
+          <span class="loading-dot"></span>
+          <span class="loading-dot"></span>
+        </div>
+        {{elseif benchmarkEvidenceScreens.length}}
+        <div class="screen-grid">
+          {{#each benchmarkEvidenceScreens}}
+          <div class="screen-card" on-click="@this.navigate('/screen/' + this.screen_id)">
+            <div class="screen-card-image">
+              <img src="screens/{{this.industry}}/{{this.file_path}}" alt="{{this.screen_id}}" loading="lazy">
+            </div>
+            <div class="screen-card-body">
+              <div class="screen-card-id">{{this.screen_id}}</div>
+              {{#if this.brand}}<div class="screen-card-brand">{{brandDisplayName(this.brand)}}</div>{{/if}}
+              <div class="screen-card-meta">
+                <span class="pill pill-industry">{{this.industry}}</span>
+                {{#if this.analysis.screen_type}}<span class="pill pill-neutral">{{this.analysis.screen_type}}</span>{{/if}}
+              </div>
+            </div>
+          </div>
+          {{/each}}
+        </div>
+        {{/if}}
+      </div>
+      {{/if}}
+
+    </div>
+
+    {{else}}
+    <div class="empty-state" style="margin-top: var(--space-12);">
+      <div class="empty-state-title">Select a group and click Compare</div>
+      <p>See how a brand, industry, or bucket's design scores compare against a benchmark.</p>
+    </div>
+    {{/if}}
+  </div>
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>

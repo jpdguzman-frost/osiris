@@ -1,5 +1,5 @@
 import { MongoClient, ObjectId } from 'mongodb';
-import { logSuccess, logWarn, logError, logDim } from './utils.js';
+import { logSuccess, logWarn, logError, logDim, SCORE_FIELDS } from './utils.js';
 
 const DB_NAME = 'osiris';
 
@@ -414,11 +414,7 @@ export class Store {
     await this.connect();
     const screens = this.db.collection('screens');
 
-    const scoreFields = [
-      'color_restraint', 'hierarchy_clarity', 'glanceability', 'density',
-      'whitespace_ratio', 'brand_confidence', 'calm_confident', 'bold_forward',
-      'overall_quality',
-    ];
+    const scoreFields = SCORE_FIELDS.core;
 
     // Build $group stage for all score averages in one pass
     const avgGroup = { _id: '$industry' };
@@ -474,6 +470,86 @@ export class Store {
       averages,
       totalCost: f.totalCost[0]?.totalCost || 0,
       distillationCount,
+    };
+  }
+
+  // ── Benchmark ───────────────────────────────────────────────────────────
+
+  async _buildBenchmarkFilter(screens, groupType, groupFilter, benchmark, benchmarkValue) {
+    if (benchmark === 'industry' && groupType === 'brand') {
+      const sample = await screens.findOne(groupFilter, { projection: { industry: 1 } });
+      return sample ? { industry: sample.industry } : {};
+    }
+    if (benchmark === 'specific') {
+      if (!benchmarkValue) return {};
+      // benchmarkValue format: "brand:slug" or "bucket:id" or "industry:name"
+      const colonIdx = benchmarkValue.indexOf(':');
+      const bType = benchmarkValue.slice(0, colonIdx);
+      const bVal = benchmarkValue.slice(colonIdx + 1);
+      if (bType === 'brand') return { brand: bVal };
+      if (bType === 'industry') return { industry: bVal };
+      if (bType === 'bucket') {
+        const bucket = await this.db.collection('buckets').findOne({ _id: new ObjectId(bVal) }, { projection: { screen_ids: 1 } });
+        return bucket ? { screen_id: { $in: bucket.screen_ids || [] } } : {};
+      }
+      return {};
+    }
+    return {};
+  }
+
+  async _buildGroupFilter(groupType, groupValue) {
+    if (groupType === 'brand') return { brand: groupValue };
+    if (groupType === 'industry') return { industry: groupValue };
+    if (groupType === 'bucket') {
+      const bucket = await this.db.collection('buckets').findOne({ _id: new ObjectId(groupValue) }, { projection: { screen_ids: 1 } });
+      return bucket ? { screen_id: { $in: bucket.screen_ids || [] } } : { screen_id: { $in: [] } };
+    }
+    return {};
+  }
+
+  async getBenchmarkData({ groupType, groupValue, benchmark, tab, benchmarkValue }) {
+    await this.connect();
+    const screens = this.db.collection('screens');
+    const fields = tab === 'spectrum' ? SCORE_FIELDS.spectrum : SCORE_FIELDS.core;
+
+    const groupFilter = await this._buildGroupFilter(groupType, groupValue);
+    const benchmarkFilter = await this._buildBenchmarkFilter(screens, groupType, groupFilter, benchmark, benchmarkValue);
+
+    const buildAvgGroup = (id) => {
+      const g = { _id: id };
+      for (const f of fields) g[f] = { $avg: `$analysis.scores.${f}` };
+      g.count = { $sum: 1 };
+      return g;
+    };
+
+    // For top10, pre-compute count so Promise.all can run both aggregations in parallel
+    const top10Limit = benchmark === 'top10'
+      ? Math.ceil(await screens.countDocuments(benchmarkFilter) * 0.1) || 1
+      : 0;
+
+    const benchmarkMatch = Object.keys(benchmarkFilter).length ? [{ $match: benchmarkFilter }] : [];
+    const benchmarkPipeline = benchmark === 'top10'
+      ? [...benchmarkMatch, { $sort: { 'analysis.scores.overall_quality': -1 } }, { $limit: top10Limit }, { $group: buildAvgGroup(null) }]
+      : [...benchmarkMatch, { $group: buildAvgGroup(null) }];
+
+    const [groupResult, benchmarkResult] = await Promise.all([
+      screens.aggregate([{ $match: groupFilter }, { $group: buildAvgGroup(null) }]).toArray(),
+      screens.aggregate(benchmarkPipeline).toArray(),
+    ]);
+
+    const groupAvg = groupResult[0] || {};
+    const benchAvg = benchmarkResult[0] || {};
+
+    const toAverages = (src) => fields.map(f => +(src[f] || 0).toFixed(2));
+    const groupAverages = toAverages(groupAvg);
+    const benchAverages = toAverages(benchAvg);
+    const deltas = fields.map((_, i) => +(groupAverages[i] - benchAverages[i]).toFixed(2));
+
+    return {
+      fields,
+      group: { averages: groupAverages, count: groupAvg.count || 0 },
+      benchmark: { averages: benchAverages, count: benchAvg.count || 0 },
+      deltas,
     };
   }
 }

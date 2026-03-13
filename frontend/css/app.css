@@ -1353,7 +1353,301 @@ img {
   margin: 0 auto;
 }
 
+/* ── Benchmark ───────────────────────────────────────────────────────────── */
+
+.benchmark-toolbar-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.benchmark-tabs {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.benchmark-groups {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.benchmark-group-pill {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-bg-raised);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-subtle);
+}
+
+.benchmark-group-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-tertiary);
+  font-size: var(--text-base);
+  padding: 0 var(--space-1);
+  line-height: 1;
+}
+
+.benchmark-group-remove:hover {
+  color: var(--color-text);
+}
+
+.filter-select-sm {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  min-width: 0;
+}
+
+.btn-sm {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+}
+
+/* Editorial layout */
+.benchmark-editorial {
+  padding: var(--space-8) 2.5vw var(--space-10);
+  flex: 1;
+  width: 95vw;
+  max-width: 95vw;
+  margin: 0 auto;
+}
+
+/* ── Stat cards row ── */
+.bm-stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
+}
+
+.bm-stat-card {
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-6);
+}
+
+.bm-stat-label {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+  margin-bottom: var(--space-2);
+}
+
+.bm-stat-value {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-medium);
+  color: var(--color-text);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  margin-bottom: var(--space-1);
+}
+
+.bm-val-positive { color: var(--color-accent); }
+.bm-val-negative { color: var(--color-error); }
+
+.bm-stat-sub {
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+  margin-top: var(--space-1);
+}
+
+/* ── Narrative ── */
+.bm-narrative {
+  font-size: var(--text-lg);
+  line-height: var(--leading-relaxed);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-10);
+  max-width: 800px;
+}
+
+.bm-narrative strong {
+  color: var(--color-text);
+  font-weight: var(--weight-medium);
+}
+
+.bm-narrative .bm-nar-positive {
+  color: var(--color-accent);
+  font-weight: var(--weight-semibold);
+}
+
+.bm-narrative .bm-nar-negative {
+  color: var(--color-error);
+  font-weight: var(--weight-semibold);
+}
+
+.bm-narrative .bm-nar-neutral {
+  color: var(--color-text-tertiary);
+}
+
+.bm-narrative .bm-nar-paragraph {
+  margin-top: var(--space-3);
+}
+
+.bm-narrative .bm-nar-label {
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+/* ── Main: Radar + Gap ── */
+.bm-main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-8);
+  margin-bottom: var(--space-10);
+}
+
+.bm-section-title {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-tertiary);
+  margin-bottom: var(--space-4);
+}
+
+.bm-radar-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.bm-radar-wrap {
+  position: relative;
+  min-height: 540px;
+  flex: 1;
+}
+
+/* ── Gap list ── */
+.bm-gap-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.bm-gap-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.bm-gap-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 52px 80px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.bm-gap-row:hover {
+  background: var(--color-bg-raised);
+}
+
+.bm-gap-label {
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bm-gap-bar-track {
+  height: 6px;
+  background: var(--color-bg-inset);
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+}
+
+.bm-gap-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.bm-gap-pos { background: var(--color-accent); }
+.bm-gap-neg { background: var(--color-error); }
+
+.bm-gap-delta {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.bm-gap-scores {
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.bm-gap-group-score {
+  font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.bm-gap-vs {
+  margin: 0 2px;
+}
+
+/* ── Evidence ── */
+.bm-evidence-section {
+  margin-bottom: var(--space-6);
+}
+
+.bm-evidence-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.bm-evidence-description {
+  margin: var(--space-4) 0 var(--space-3);
+  padding: var(--space-5) var(--space-6);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  border-left: 4px solid var(--accent);
+}
+
+.bm-evidence-desc-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 var(--space-2);
+}
+
+.bm-evidence-desc-text {
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  margin: 0;
+  max-width: 72ch;
+}
+
+.bm-evidence-section .screen-grid {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
 /* ── Scatter Plot ─────────────────────────────────────────────────────────── */
+
+.benchmark-page {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 56px);
+  overflow: visible;
+}
 
 .scatter-page {
   display: flex;
@@ -1362,6 +1656,7 @@ img {
   overflow: hidden;
 }
 
+.benchmark-toolbar,
 .scatter-toolbar {
   display: flex;
   align-items: flex-end;
@@ -1371,6 +1666,7 @@ img {
   flex-shrink: 0;
 }
 
+.benchmark-toolbar-title,
 .scatter-toolbar-title {
   display: flex;
   align-items: baseline;
@@ -2338,6 +2634,7 @@ img {
     gap: var(--space-3);
   }
 
+  .benchmark-page,
   .scatter-page {
     height: auto;
     overflow: auto;
