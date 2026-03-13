@@ -1669,10 +1669,40 @@ img {
 .benchmark-toolbar-title,
 .scatter-toolbar-title {
   display: flex;
+  flex-direction: column;
   align-items: baseline;
-  gap: var(--space-2);
   flex-shrink: 0;
-  padding-bottom: var(--space-2);
+}
+
+.scatter-dimension-explainer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  padding: var(--space-4) 4px;
+  margin-bottom: -3rem;
+  max-width: 70vw;
+  flex-shrink: 0;
+}
+
+.scatter-dim-card {
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  border-left: 4px solid var(--accent);
+}
+
+.scatter-dim-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 var(--space-2);
+}
+
+.scatter-dim-text {
+  font-size: 1.2rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0;
 }
 
 .scatter-title {
@@ -1716,6 +1746,7 @@ img {
   flex: 1;
   position: relative;
   min-height: 0;
+  margin: 0 20px 40px;
 }
 
 .scatter-container canvas {

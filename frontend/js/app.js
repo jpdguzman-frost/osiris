@@ -223,11 +223,11 @@ const AXIS_LABELS = {
   density: 'Density (1–10)',
   whitespace_ratio: 'Whitespace Ratio (1–10)',
   brand_confidence: 'Brand Confidence (1–10)',
-  calm_energetic: '\u2190 Calm \u00b7 \u00b7 \u00b7 \u00b7 \u00b7 Energetic \u2192',
-  confident_tentative: '\u2190 Confident \u00b7 \u00b7 \u00b7 \u00b7 \u00b7 Tentative \u2192',
-  forward_conservative: '\u2190 Forward \u00b7 \u00b7 \u00b7 \u00b7 \u00b7 Conservative \u2192',
-  premium_accessible: '\u2190 Premium \u00b7 \u00b7 \u00b7 \u00b7 \u00b7 Accessible \u2192',
-  warm_clinical: '\u2190 Warm \u00b7 \u00b7 \u00b7 \u00b7 \u00b7 Clinical \u2192',
+  calm_energetic: 'Calm \u2194 Energetic',
+  confident_tentative: 'Confident \u2194 Tentative',
+  forward_conservative: 'Forward \u2194 Conservative',
+  premium_accessible: 'Premium \u2194 Accessible',
+  warm_clinical: 'Warm \u2194 Clinical',
 };
 
 const SCATTER_PRESETS = [

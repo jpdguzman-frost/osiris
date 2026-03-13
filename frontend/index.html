@@ -1117,6 +1117,17 @@
       </div>
     </div>
 
+    <div class="scatter-dimension-explainer">
+      <div class="scatter-dim-card">
+        <h4 class="scatter-dim-title">{{formatFieldName(scatterX)}}</h4>
+        <p class="scatter-dim-text">{{fieldDescription(scatterX)}}</p>
+      </div>
+      <div class="scatter-dim-card">
+        <h4 class="scatter-dim-title">{{formatFieldName(scatterY)}}</h4>
+        <p class="scatter-dim-text">{{fieldDescription(scatterY)}}</p>
+      </div>
+    </div>
+
     {{#if scatterLoading}}
     <div class="loading">
       <span class="loading-dot"></span>
