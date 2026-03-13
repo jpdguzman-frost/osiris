@@ -24,6 +24,7 @@ const api = {
   vocabularies: () => api.get('/api/vocabularies'),
   similar:      (id, p) => api.get('/api/similar/' + encodeURIComponent(id) + '?' + new URLSearchParams(p)),
   scatter:      (p) => api.get('/api/scatter?' + new URLSearchParams(p)),
+  brands:       (p) => api.get('/api/brands?' + new URLSearchParams(p || {})),
   buckets:      () => api.get('/api/buckets'),
   bucket:       (id, p) => api.get('/api/buckets/' + encodeURIComponent(id) + '?' + new URLSearchParams(p)),
   createBucket: (name) => fetch(BASE + '/api/buckets', {
@@ -111,6 +112,12 @@ const SPECTRUM_FIELDS = [
   { field: 'premium_accessible', left: 'Premium', right: 'Accessible' },
   { field: 'warm_clinical', left: 'Warm', right: 'Clinical' },
 ];
+
+function brandDisplayName(slug) {
+  if (!slug) return '';
+  if (slug.length <= 3) return slug.toUpperCase();
+  return slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
 
 function scoreLabel(field) {
   return SCORE_LABELS[field] || field;
@@ -263,8 +270,13 @@ const app = new Ractive({
       galleryPage: 1,
       galleryTotal: 0,
       hasMore: false,
+      brands: [],
+      filteredBrands: [],
+      galleryBrandOpen: false,
+      galleryBrandSearch: '',
       filters: {
         industry: '',
+        brand: '',
         screen_type: '',
         mood: '',
         sort: 'overall_quality',
@@ -295,6 +307,7 @@ const app = new Ractive({
 
       // Helpers exposed to templates
       formatCost: function (v) { return v != null ? v.toFixed(2) : '0.00'; },
+      brandDisplayName: brandDisplayName,
       scoreClass: scoreClass,
       similarityClass: similarityClass,
       simPct: function (v) {
@@ -329,6 +342,11 @@ const app = new Ractive({
       scatterScreenTypes: [],
       scatterScreenTypeSelected: {},
       scatterScreenTypeOpen: false,
+      scatterBrands: [],
+      scatterBrandSelected: {},
+      scatterBrandOpen: false,
+      scatterBrandSearch: '',
+      scatterFilteredBrands: [],
       scatterMood: '',
       scatterCount: 0,
       scatterLoading: false,
@@ -379,6 +397,12 @@ const app = new Ractive({
       }
       if (self.get('scatterScreenTypeOpen') && !e.target.closest('.scatter-screentype-group')) {
         self.set('scatterScreenTypeOpen', false);
+      }
+      if (self.get('scatterBrandOpen') && !e.target.closest('.scatter-brand-group')) {
+        self.set({ scatterBrandOpen: false, scatterBrandSearch: '' });
+      }
+      if (self.get('galleryBrandOpen') && !e.target.closest('.gallery-brand-group')) {
+        self.set({ galleryBrandOpen: false, galleryBrandSearch: '' });
       }
     });
 
@@ -493,8 +517,11 @@ const app = new Ractive({
 
   loadVocabularies: async function () {
     try {
-      const vocabs = await api.vocabularies();
+      const [vocabs, brandData] = await Promise.all([api.vocabularies(), api.brands()]);
       this.set('vocabs', vocabs);
+      this.set('brands', brandData.brands || []);
+      this.set('filteredBrands', brandData.brands || []);
+      this.set('scatterFilteredBrands', brandData.brands || []);
     } catch (err) {
       console.error('Vocabularies load error:', err);
     }
@@ -514,6 +541,7 @@ const app = new Ractive({
         order: 'desc',
       };
       if (f.industry) params.industry = f.industry;
+      if (f.brand) params.brand = f.brand;
       if (f.screen_type) params.screen_type = f.screen_type;
       if (f.mood) params.mood = f.mood;
       if (f.min_score > 0) params.min_score = f.min_score;
@@ -656,9 +684,11 @@ const app = new Ractive({
       };
       const inds = this.get('scatterIndustries');
       const types = this.get('scatterScreenTypes');
+      const brands = this.get('scatterBrands');
       const mood = this.get('scatterMood');
       if (inds && inds.length) params.industry = inds.join(',');
       if (types && types.length) params.screen_type = types.join(',');
+      if (brands && brands.length) params.brand = brands.join(',');
       if (mood) params.mood = mood;
 
       const data = await api.scatter(params);
@@ -895,11 +925,13 @@ const app = new Ractive({
     if (idx >= 0) { list.splice(idx, 1); delete sel[id]; }
     else { list.push(id); sel[id] = true; }
     this.set({ scatterIndustries: list, scatterSelected: sel });
+    this._updateScatterFilteredBrands();
     this._debouncedLoadScatter();
   },
 
   clearScatterIndustries: function () {
     this.set({ scatterIndustries: [], scatterSelected: {} });
+    this._updateScatterFilteredBrands();
     this._debouncedLoadScatter();
   },
 
@@ -937,6 +969,46 @@ const app = new Ractive({
     if (!sel || !sel.length) return 'All Types';
     if (sel.length === 1) return sel[0];
     return sel.length + ' Types';
+  },
+
+  _updateScatterFilteredBrands: function () {
+    const selectedIndustries = this.get('scatterIndustries');
+    const allBrands = this.get('brands');
+    if (selectedIndustries && selectedIndustries.length) {
+      this.set('scatterFilteredBrands', allBrands.filter(b => selectedIndustries.includes(b.industry)));
+    } else {
+      this.set('scatterFilteredBrands', allBrands);
+    }
+  },
+
+  toggleScatterBrandDropdown: function () {
+    this.toggle('scatterBrandOpen');
+    if (this.get('scatterBrandOpen')) this.set('scatterBrandSearch', '');
+  },
+
+  toggleScatterBrand: function (slug) {
+    const list = this.get('scatterBrands').slice();
+    const sel = Object.assign({}, this.get('scatterBrandSelected'));
+    const idx = list.indexOf(slug);
+    if (idx >= 0) { list.splice(idx, 1); delete sel[slug]; }
+    else { list.push(slug); sel[slug] = true; }
+    this.set({ scatterBrands: list, scatterBrandSelected: sel });
+    this._debouncedLoadScatter();
+  },
+
+  clearScatterBrands: function () {
+    this.set({ scatterBrands: [], scatterBrandSelected: {} });
+    this._debouncedLoadScatter();
+  },
+
+  scatterBrandLabel: function () {
+    const sel = this.get('scatterBrands');
+    if (!sel || !sel.length) return 'All Brands';
+    if (sel.length === 1) {
+      const b = this.get('brands').find(b => b.slug === sel[0]);
+      return b ? b.name : sel[0];
+    }
+    return sel.length + ' Brands';
   },
 
   // ── Cluster Modal ─────────────────────────────────────────────────────
@@ -1146,7 +1218,32 @@ const app = new Ractive({
     }
   },
 
+  toggleGalleryBrandDropdown: function () {
+    this.toggle('galleryBrandOpen');
+    if (this.get('galleryBrandOpen')) this.set('galleryBrandSearch', '');
+  },
+
+  selectGalleryBrand: function (slug) {
+    this.set({ 'filters.brand': slug, galleryBrandOpen: false, galleryBrandSearch: '' });
+    this.applyFilters();
+  },
+
   applyFilters: function () {
+    // When industry changes, filter available brands
+    const industry = this.get('filters.industry');
+    const allBrands = this.get('brands');
+    if (industry) {
+      this.set('filteredBrands', allBrands.filter(b => b.industry === industry));
+    } else {
+      this.set('filteredBrands', allBrands);
+    }
+    // Reset brand filter if selected brand not in new industry
+    const currentBrand = this.get('filters.brand');
+    const available = this.get('filteredBrands');
+    if (currentBrand && !available.some(b => b.slug === currentBrand)) {
+      this.set('filters.brand', '');
+    }
+
     this.set('galleryPage', 1);
     this.loadScreens(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });

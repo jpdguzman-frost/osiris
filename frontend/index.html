@@ -217,6 +217,29 @@
           </select>
         </div>
 
+        <div class="filter-group gallery-brand-group">
+          <div class="filter-label">Brand</div>
+          <div class="multiselect">
+            <div class="multiselect-display filter-select" on-click="@this.toggleGalleryBrandDropdown()">{{filters.brand ? brandDisplayName(filters.brand) : 'All Brands'}}</div>
+            {{#if galleryBrandOpen}}
+            <div class="multiselect-dropdown">
+              <input class="multiselect-search" placeholder="Search brands…" value="{{galleryBrandSearch}}" />
+              <div class="multiselect-item" on-click="@this.selectGalleryBrand('')">
+                <span class="multiselect-name">All Brands</span>
+              </div>
+              {{#each filteredBrands}}
+              {{#if !~/galleryBrandSearch || ~/galleryBrandSearch.length === 0 || this.name.toLowerCase().indexOf(~/galleryBrandSearch.toLowerCase()) !== -1}}
+              <div class="multiselect-item {{#if this.slug === ~/filters.brand}}selected{{/if}}" on-click="@this.selectGalleryBrand(this.slug)">
+                <span class="multiselect-name">{{this.name}}</span>
+                <span class="multiselect-count">{{this.count}}</span>
+              </div>
+              {{/if}}
+              {{/each}}
+            </div>
+            {{/if}}
+          </div>
+        </div>
+
         <div class="filter-group">
           <div class="filter-label">Screen Type</div>
           <select class="filter-select" value="{{filters.screen_type}}" on-change="@this.applyFilters()">
@@ -303,6 +326,7 @@
             </div>
             <div class="screen-card-body">
               <div class="screen-card-id">{{this.screen_id}}</div>
+              {{#if this.brand}}<div class="screen-card-brand">{{brandDisplayName(this.brand)}}</div>{{/if}}
               <div class="screen-card-meta">
                 <span class="pill pill-industry">{{this.industry}}</span>
                 {{#if this.analysis.screen_type}}<span class="pill pill-neutral">{{this.analysis.screen_type}}</span>{{/if}}
@@ -355,6 +379,7 @@
       </div>
       <div class="detail-meta">
         <h1 class="detail-title">{{screen.screen_id}}</h1>
+        {{#if screen.brand}}<div class="detail-brand">{{brandDisplayName(screen.brand)}}</div>{{/if}}
         <div class="detail-tags-row">
           <span class="pill pill-industry">{{screen.industry}}</span>
           {{#if screen.analysis.screen_type}}<span class="pill pill-neutral">{{screen.analysis.screen_type}}</span>{{/if}}
@@ -455,6 +480,7 @@
           </div>
           <div class="screen-card-body">
             <div class="screen-card-id">{{this.screen_id}}</div>
+            {{#if this.brand}}<div class="screen-card-brand">{{brandDisplayName(this.brand)}}</div>{{/if}}
             <div class="screen-card-meta">
               <span class="pill pill-industry">{{this.industry}}</span>
               {{#if this.analysis.screen_type}}<span class="pill pill-neutral">{{this.analysis.screen_type}}</span>{{/if}}
@@ -1010,6 +1036,30 @@
                 <span class="multiselect-name">{{this.name}}</span>
                 <span class="multiselect-count">{{this.count}}</span>
               </div>
+              {{/each}}
+            </div>
+            {{/if}}
+          </div>
+        </div>
+
+        <div class="filter-group scatter-brand-group">
+          <div class="filter-label">Brand</div>
+          <div class="multiselect">
+            <div class="multiselect-display filter-select" on-click="@this.toggleScatterBrandDropdown()">{{@this.scatterBrandLabel()}}</div>
+            {{#if scatterBrandOpen}}
+            <div class="multiselect-dropdown">
+              <input class="multiselect-search" placeholder="Search brands…" value="{{scatterBrandSearch}}" />
+              {{#if scatterBrands.length}}
+              <div class="multiselect-item multiselect-clear" on-click="@this.clearScatterBrands()">Clear All</div>
+              {{/if}}
+              {{#each scatterFilteredBrands}}
+              {{#if !scatterBrandSearch || ~/scatterBrandSearch.length === 0 || this.name.toLowerCase().indexOf(~/scatterBrandSearch.toLowerCase()) !== -1}}
+              <div class="multiselect-item" on-click="@this.toggleScatterBrand(this.slug)">
+                <span class="multiselect-check {{#if scatterBrandSelected[this.slug]}}checked{{/if}}">{{#if scatterBrandSelected[this.slug]}}&#10003;{{/if}}</span>
+                <span class="multiselect-name">{{this.name}}</span>
+                <span class="multiselect-count">{{this.count}}</span>
+              </div>
+              {{/if}}
               {{/each}}
             </div>
             {{/if}}

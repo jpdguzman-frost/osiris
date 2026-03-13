@@ -1,0 +1,16 @@
+{
+  "name": "osiris-mcp-server",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "MCP server for Osiris design intelligence — translates tool calls into HTTP GETs against the deployed API",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "inspect": "npx @modelcontextprotocol/inspector node index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.24.4"
+  }
+}

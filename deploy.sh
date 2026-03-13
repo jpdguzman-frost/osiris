@@ -75,6 +75,28 @@ else
     echo -e "${BLUE}⏭  Skipping screen data sync${NC}"
 fi
 
+# ─── Step 2b: Sync analysis data ─────────────────────────────────────────────
+
+echo ""
+read -p "$(echo -e ${YELLOW}"📊 Sync analysis data (data/analysis/)? [y/N]: "${NC})" SYNC_ANALYSIS
+
+if [[ "$SYNC_ANALYSIS" =~ ^[Yy]$ ]]; then
+    echo -e "${YELLOW}📊 Syncing analysis data...${NC}"
+    ${SSH_CMD} "mkdir -p ${DEST_DIR}/data/analysis"
+    rsync -avz --progress \
+      -e "ssh -i ${SSH_KEY} -p ${DEST_PORT}" \
+      ${SRC_DIR}/data/analysis/ ${DEST_USER}@${DEST_HOST}:${DEST_DIR}/data/analysis/
+
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✅ Analysis data synced successfully${NC}"
+    else
+        echo -e "${RED}❌ Analysis data sync failed${NC}"
+        exit 1
+    fi
+else
+    echo -e "${BLUE}⏭  Skipping analysis data sync${NC}"
+fi
+
 # ─── Step 3: Install dependencies ───────────────────────────────────────────
 
 echo -e "${YELLOW}📚 Installing production dependencies on remote server...${NC}"

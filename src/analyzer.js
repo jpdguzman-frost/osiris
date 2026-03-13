@@ -46,7 +46,7 @@ export class Analyzer {
 
   // ── Main Entry ──────────────────────────────────────────────────────────
 
-  async analyzeAll(industryIds = null) {
+  async analyzeAll(industryIds = null, brandPrefixes = null) {
     await this.loadRubric();
     await this.loadVocabularies();
 
@@ -56,7 +56,7 @@ export class Analyzer {
 
     const results = {};
     for (const industry of industries) {
-      results[industry.id] = await this.analyzeIndustry(industry.id);
+      results[industry.id] = await this.analyzeIndustry(industry.id, brandPrefixes);
 
       // Check budget
       if (this.costTracker.totalCost >= this.budgetCap) {
@@ -69,7 +69,7 @@ export class Analyzer {
     return results;
   }
 
-  async analyzeIndustry(industryId) {
+  async analyzeIndustry(industryId, brandPrefixes = null) {
     const screensDir = path.join(PATHS.screens, industryId);
     const analysisDir = path.join(PATHS.analysis, industryId);
     await ensureDirs(analysisDir);
@@ -79,9 +79,10 @@ export class Analyzer {
       return { analyzed: 0, skipped: 0, errors: 0 };
     }
 
-    // Get all image files
+    // Get all image files, optionally filtered by brand prefix
     const files = (await fs.readdir(screensDir))
-      .filter(f => IMAGE_EXT_RE.test(f));
+      .filter(f => IMAGE_EXT_RE.test(f))
+      .filter(f => !brandPrefixes || brandPrefixes.some(p => f.startsWith(p)));
 
     // Check which are already analyzed (resume support)
     const toAnalyze = [];

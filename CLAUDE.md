@@ -65,3 +65,5 @@ Screenshots (data/screens/{industry}/)
 - Exponential backoff on API calls: 1s → 2s → 4s, max 60s, 3 attempts
 - Logging: `logInfo()`, `logSuccess()`, `logWarn()`, `logError()`, `logProgress()`
 - Keep style consistent with existing code — no linting config
+- **Always run `/simplify` after completing code changes** — review for reuse, quality, and efficiency before considering the task done
+- **When user says "deploy"**, run `./deploy.sh`

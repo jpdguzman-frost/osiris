@@ -23,14 +23,19 @@ async function main() {
     ...(concurrency && { concurrency }),
   });
 
+  const brandFilter = flags.brand ? flags.brand.split(',').map(s => s.trim()) : null;
+
   if (industryFilter) {
     logInfo(`Industries: ${industryFilter.join(', ')}`);
   } else {
     logInfo('Analyzing ALL industries');
   }
+  if (brandFilter) {
+    logInfo(`Brand filter: ${brandFilter.join(', ')}`);
+  }
 
   try {
-    const results = await analyzer.analyzeAll(industryFilter);
+    const results = await analyzer.analyzeAll(industryFilter, brandFilter);
 
     console.log('\n╔══════════════════════════════════════════════════╗');
     console.log('║              Analysis Summary                     ║');

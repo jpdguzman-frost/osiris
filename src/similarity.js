@@ -1,6 +1,8 @@
 // ─── Similarity Engine ────────────────────────────────────────────────────────
 // Three-layer fusion search: semantic + visual + score
 
+import { extractBrand } from './utils.js';
+
 // ─── Weight Presets ───────────────────────────────────────────────────────────
 
 export const WEIGHT_PRESETS = {
@@ -163,12 +165,6 @@ export function computeSimilarity(screenA, screenB, weights = WEIGHT_PRESETS.def
 
 // ─── Find Similar (Brute-force Top-K) ─────────────────────────────────────────
 
-// Extract app/brand prefix from screen_id: "coinbase_02" → "coinbase"
-function appPrefix(screenId) {
-  const m = screenId.match(/^(.+?)_\d+$/);
-  return m ? m[1] : screenId;
-}
-
 export function findSimilar(target, allScreens, options = {}) {
   const {
     weights = WEIGHT_PRESETS.default,
@@ -198,7 +194,7 @@ export function findSimilar(target, allScreens, options = {}) {
     const appCounts = {};
     const diverse = [];
     for (const r of results) {
-      const app = appPrefix(r.screen_id);
+      const app = extractBrand(r.screen_id);
       appCounts[app] = (appCounts[app] || 0) + 1;
       if (appCounts[app] <= maxPerApp) {
         diverse.push(r);

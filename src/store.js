@@ -5,6 +5,7 @@ const DB_NAME = 'osiris';
 
 const SCREEN_LIST_PROJECTION = {
   screen_id: 1,
+  brand: 1,
   industry: 1,
   source: 1,
   file_path: 1,
@@ -56,6 +57,7 @@ export class Store {
       screens.createIndex({ screen_id: 1 }, { unique: true }),
       screens.createIndex({ industry: 1 }),
       screens.createIndex({ source: 1 }),
+      screens.createIndex({ brand: 1 }),
       screens.createIndex({ generation: 1 }),
 
       // Fingerprint
@@ -85,6 +87,19 @@ export class Store {
 
   // ── Screen CRUD ─────────────────────────────────────────────────────────
 
+  async cleanScreensByPrefix(prefix) {
+    await this.connect();
+    const result = await this.db.collection('screens').deleteMany({
+      screen_id: { $regex: `^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` },
+    });
+    return result.deletedCount;
+  }
+
+  async deleteScreen(screenId) {
+    await this.connect();
+    return this.db.collection('screens').deleteOne({ screen_id: screenId });
+  }
+
   async saveScreen(doc) {
     await this.connect();
     const result = await this.db.collection('screens').updateOne(
@@ -106,6 +121,7 @@ export class Store {
       .find(filter)
       .project({
         screen_id: 1,
+        brand: 1,
         industry: 1,
         source: 1,
         file_path: 1,
@@ -123,7 +139,7 @@ export class Store {
     await this.connect();
     const docs = await this.db.collection('screens')
       .find({})
-      .project({ screen_id: 1, industry: 1, file_path: 1, visual_features: 1 })
+      .project({ screen_id: 1, brand: 1, industry: 1, file_path: 1, visual_features: 1 })
       .toArray();
     return docs;
   }
@@ -419,6 +435,7 @@ export class Store {
           total: [{ $count: 'count' }],
           byIndustry: [{ $group: { _id: '$industry', count: { $sum: 1 } } }],
           bySource: [{ $group: { _id: '$source', count: { $sum: 1 } } }],
+          byBrand: [{ $group: { _id: '$brand', count: { $sum: 1 } } }, { $sort: { count: -1 } }],
           withFingerprints: [
             { $match: { 'fingerprint.style_tags': { $exists: true, $ne: [] } } },
             { $count: 'count' },
@@ -451,6 +468,7 @@ export class Store {
       totalScreens: f.total[0]?.count || 0,
       byIndustry: Object.fromEntries(f.byIndustry.map(r => [r._id, r.count])),
       bySource: Object.fromEntries(f.bySource.map(r => [r._id, r.count])),
+      byBrand: Object.fromEntries(f.byBrand.map(r => [r._id, r.count])),
       withFingerprints: f.withFingerprints[0]?.count || 0,
       withVisualFeatures: f.withVisualFeatures[0]?.count || 0,
       averages,

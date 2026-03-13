@@ -5,7 +5,7 @@ import fs from 'fs-extra';
 import dotenv from 'dotenv';
 import Anthropic from '@anthropic-ai/sdk';
 import { Store } from './src/store.js';
-import { PATHS, CLAUDE_MODEL, SCORE_FIELDS as SCORE_FIELD_LISTS } from './src/utils.js';
+import { PATHS, CLAUDE_MODEL, SCORE_FIELDS as SCORE_FIELD_LISTS, brandDisplayName } from './src/utils.js';
 import { findSimilar, WEIGHT_PRESETS } from './src/similarity.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -20,6 +20,12 @@ const store = new Store();
 
 // Helper to build image URLs with base path
 const screenUrl = (industry, filePath) => `${BASE_PATH}/screens/${industry}/${filePath}`;
+
+// Parse comma-separated query param into MongoDB filter value
+const parseMultiFilter = (val) => {
+  const items = val.split(',');
+  return items.length > 1 ? { $in: items } : items[0];
+};
 
 // Load config files into memory
 const industriesConfig = await fs.readJson(path.join(PATHS.config, 'industries.json'));
@@ -82,6 +88,26 @@ router.get('/api/vocabularies', (req, res) => {
   res.json(vocabularies);
 });
 
+// ─── API: Brands ────────────────────────────────────────────────────────────
+
+router.get('/api/brands', async (req, res) => {
+  try {
+    const filter = {};
+    if (req.query.industry) filter.industry = req.query.industry;
+    const results = await store.db.collection('screens').aggregate([
+      { $match: filter },
+      { $group: { _id: { brand: '$brand', industry: '$industry' }, count: { $sum: 1 } } },
+      { $sort: { '_id.brand': 1 } }
+    ]).toArray();
+    const brands = results
+      .filter(r => r._id.brand)
+      .map(r => ({ slug: r._id.brand, name: brandDisplayName(r._id.brand), industry: r._id.industry, count: r.count }));
+    res.json({ brands });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── API: Screens (paginated + filtered) ─────────────────────────────────────
 
 router.get('/api/screens', async (req, res) => {
@@ -93,15 +119,11 @@ router.get('/api/screens', async (req, res) => {
 
     const filter = {};
     if (req.query.industry) filter.industry = req.query.industry;
-    if (req.query.screen_type) {
-      const types = req.query.screen_type.split(',');
-      filter['analysis.screen_type'] = types.length > 1 ? { $in: types } : types[0];
-    }
+    if (req.query.brand) filter.brand = parseMultiFilter(req.query.brand);
+    if (req.query.screen_type) filter['analysis.screen_type'] = parseMultiFilter(req.query.screen_type);
     if (req.query.mood) filter['fingerprint.design_mood'] = req.query.mood;
     if (req.query.layout) filter['fingerprint.layout_type'] = req.query.layout;
-    if (req.query.tags) {
-      filter['fingerprint.style_tags'] = { $in: req.query.tags.split(',') };
-    }
+    if (req.query.tags) filter['fingerprint.style_tags'] = { $in: req.query.tags.split(',') };
     const scoreKey = `analysis.scores.${sortField}`;
     if (req.query.min_score || req.query.max_score) {
       filter[scoreKey] = {};
@@ -153,6 +175,7 @@ router.get('/api/similar/:screenId', async (req, res) => {
 
     const filter = {};
     if (req.query.industry) filter.industry = req.query.industry;
+    if (req.query.brand) filter.brand = parseMultiFilter(req.query.brand);
     const allScreens = await store.getScreensWithFingerprints(filter);
 
     const presetName = req.query.preset || 'default';
@@ -199,14 +222,9 @@ router.get('/api/scatter', async (req, res) => {
     }
 
     const filter = {};
-    if (req.query.industry) {
-      const industries = req.query.industry.split(',');
-      filter.industry = industries.length > 1 ? { $in: industries } : industries[0];
-    }
-    if (req.query.screen_type) {
-      const types = req.query.screen_type.split(',');
-      filter['analysis.screen_type'] = types.length > 1 ? { $in: types } : types[0];
-    }
+    if (req.query.industry) filter.industry = parseMultiFilter(req.query.industry);
+    if (req.query.brand) filter.brand = parseMultiFilter(req.query.brand);
+    if (req.query.screen_type) filter['analysis.screen_type'] = parseMultiFilter(req.query.screen_type);
     if (req.query.mood) filter['fingerprint.design_mood'] = req.query.mood;
 
     const screens = await store.db.collection('screens')
@@ -214,6 +232,7 @@ router.get('/api/scatter', async (req, res) => {
       .project({
         screen_id: 1,
         industry: 1,
+        brand: 1,
         file_path: 1,
         [`analysis.scores.${xField}`]: 1,
         [`analysis.scores.${yField}`]: 1,
@@ -226,6 +245,7 @@ router.get('/api/scatter', async (req, res) => {
     const points = screens.map(s => ({
       id: s.screen_id,
       industry: s.industry,
+      brand: s.brand || '',
       file_path: s.file_path || '',
       x: s.analysis?.scores?.[xField] ?? 0,
       y: s.analysis?.scores?.[yField] ?? 0,
@@ -480,6 +500,7 @@ router.post('/api/buckets/:id/generate-metadata', async (req, res) => {
         screen_id: 1, industry: 1,
         'analysis.scores': 1, 'analysis.verdict': 1, 'analysis.screen_type': 1,
         'fingerprint.style_tags': 1, 'fingerprint.design_mood': 1, 'fingerprint.layout_type': 1,
+        brand: 1,
       })
       .toArray();
 
@@ -492,10 +513,12 @@ router.post('/api/buckets/:id/generate-metadata', async (req, res) => {
     }
 
     const industryCounts = {};
+    const brandCounts = {};
     const moodCounts = {};
     const screenTypeCounts = {};
     for (const s of screens) {
       if (s.industry) industryCounts[s.industry] = (industryCounts[s.industry] || 0) + 1;
+      if (s.brand) brandCounts[s.brand] = (brandCounts[s.brand] || 0) + 1;
       const mood = s.fingerprint?.design_mood;
       if (mood) moodCounts[mood] = (moodCounts[mood] || 0) + 1;
       const st = s.analysis?.screen_type;
@@ -565,6 +588,7 @@ Screens:\n${summaries}\n\nRespond ONLY with valid JSON, no markdown fences.`
         avg_calm: avgScores.calm_confident,
         avg_bold: avgScores.bold_forward,
         industries: industryCounts,
+        brands: brandCounts,
         moods: moodCounts,
         screen_types: screenTypeCounts,
       },

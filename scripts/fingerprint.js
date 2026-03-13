@@ -60,7 +60,8 @@ async function main() {
       }
 
       if (!resolvedPath) {
-        logWarn(`File not found: ${filePath} (tried ${candidates.length} paths)`);
+        logWarn(`File not found: ${filePath} — removing orphan record ${screen.screen_id}`);
+        await store.deleteScreen(screen.screen_id);
         errors++;
         return;
       }

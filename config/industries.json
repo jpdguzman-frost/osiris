@@ -175,6 +175,108 @@
         "mobile banking app card-based layout"
       ],
       "web_targets": []
+    },
+    {
+      "id": "fundraising",
+      "name": "Fundraising Platforms",
+      "search_queries": [
+        "GoFundMe campaign page UI design",
+        "Kickstarter project page interface",
+        "Indiegogo crowdfunding page layout",
+        "Patreon creator dashboard UI",
+        "Buy Me a Coffee creator page design",
+        "DonorBox donation form interface",
+        "Classy nonprofit fundraising page",
+        "GiveButter fundraising platform UI",
+        "crowdfunding campaign page best design",
+        "nonprofit donation page UX design",
+        "charity fundraising landing page UI",
+        "peer-to-peer fundraising interface",
+        "donation progress bar UI design",
+        "fundraising platform mobile app interface",
+        "crowdfunding rewards tier layout",
+        "nonprofit giving page minimal design",
+        "fundraising dashboard analytics UI",
+        "donation checkout flow UX",
+        "Open Collective funding page design",
+        "Ko-fi creator support page UI"
+      ],
+      "web_targets": [
+        "https://www.gofundme.com",
+        "https://www.kickstarter.com",
+        "https://www.patreon.com",
+        "https://www.indiegogo.com",
+        "https://www.buymeacoffee.com",
+        "https://www.classy.org"
+      ]
+    },
+    {
+      "id": "education",
+      "name": "Learning & Education",
+      "search_queries": [
+        "Duolingo app lesson interface design",
+        "Coursera course page UI design",
+        "Khan Academy learning dashboard",
+        "Brilliant app problem interface UI",
+        "Notion for education workspace design",
+        "Udemy course player interface",
+        "edX learning platform UI",
+        "Skillshare class page design",
+        "MasterClass lesson interface dark mode",
+        "Google Classroom interface design",
+        "Anki flashcard app UI",
+        "e-learning platform dashboard design",
+        "online course progress tracker UI",
+        "educational app gamification interface",
+        "LMS student dashboard design 2024",
+        "interactive learning quiz interface",
+        "language learning app UI design",
+        "coding education platform interface",
+        "Codecademy lesson UI design",
+        "educational app onboarding flow"
+      ],
+      "web_targets": [
+        "https://www.duolingo.com",
+        "https://www.coursera.org",
+        "https://www.khanacademy.org",
+        "https://brilliant.org",
+        "https://www.masterclass.com",
+        "https://www.codecademy.com"
+      ]
+    },
+    {
+      "id": "marketplace",
+      "name": "Marketplace & Retail",
+      "search_queries": [
+        "Shopify storefront design examples",
+        "Etsy product listing page UI",
+        "Amazon product page interface design",
+        "Mercado Libre marketplace UI",
+        "Tokopedia app home screen design",
+        "Shopee app interface layout",
+        "Lazada marketplace mobile UI",
+        "Airbnb listing page design",
+        "StockX product page interface",
+        "GOAT sneaker marketplace UI",
+        "e-commerce product page best design 2024",
+        "marketplace search results page UI",
+        "retail app home screen card layout",
+        "e-commerce checkout flow design",
+        "marketplace seller dashboard interface",
+        "product detail page mobile UI design",
+        "e-commerce filter and sort interface",
+        "retail app category browsing UI",
+        "Depop marketplace app design",
+        "Zalando product page interface"
+      ],
+      "web_targets": [
+        "https://www.etsy.com",
+        "https://www.airbnb.com",
+        "https://www.stockx.com",
+        "https://www.shopify.com/examples",
+        "https://www.depop.com",
+        "https://www.zalando.com"
+      ]
     }
   ]
 }

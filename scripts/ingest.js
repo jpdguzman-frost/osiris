@@ -6,7 +6,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import { Store } from '../src/store.js';
 import { scoresToVector } from '../src/similarity.js';
-import { logInfo, logSuccess, logWarn, logError, logProgress, PATHS, parseFlags, loadIndustries } from '../src/utils.js';
+import { logInfo, logSuccess, logWarn, logError, logProgress, PATHS, parseFlags, loadIndustries, extractBrand } from '../src/utils.js';
 
 const { flags, industryFilter } = parseFlags();
 
@@ -27,6 +27,15 @@ async function main() {
       logInfo(`Industries: ${industryFilter.join(', ')}`);
     } else {
       logInfo('Ingesting ALL industries');
+    }
+
+    // Clean screens by prefix before ingesting
+    if (flags.clean) {
+      const prefixes = flags.clean.split(',').map(s => s.trim());
+      for (const prefix of prefixes) {
+        const deleted = await store.cleanScreensByPrefix(prefix);
+        logInfo(`Cleaned ${deleted} screens matching prefix "${prefix}"`);
+      }
     }
 
     let totalIngested = 0;
@@ -61,6 +70,7 @@ async function main() {
           // Build screen document in new schema
           const doc = {
             screen_id: screenId,
+            brand: extractBrand(screenId),
             industry: industryId,
             source,
             file_path: data.file || '',

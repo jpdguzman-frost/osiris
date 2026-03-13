@@ -165,6 +165,19 @@ export function sanitizeFilename(str) {
     .slice(0, 80);
 }
 
+// ─── Brand Extraction ─────────────────────────────────────────────────────────
+
+export function extractBrand(screenId) {
+  const m = screenId.match(/^(.+?)_\d+$/);
+  return m ? m[1] : screenId;
+}
+
+export function brandDisplayName(slug) {
+  if (!slug) return '';
+  if (slug.length <= 3) return slug.toUpperCase();
+  return slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
 // ─── Promise Pool ─────────────────────────────────────────────────────────────
 
 export async function promisePool(items, concurrency, fn) {
