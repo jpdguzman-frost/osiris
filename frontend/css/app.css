@@ -3063,6 +3063,20 @@ img {
   align-items: flex-start;
   padding: var(--space-4) 0 var(--space-8);
   overflow-x: auto;
+  position: relative;
+}
+
+/* Dotted midpoint line across all sliders */
+.mixer-sliders::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* value(text-md ~22px) + gap(16px) + half of slider height(100px) = ~138px from top */
+  top: calc(24px + var(--space-4) + 126px);
+  border-top: 1px dashed var(--color-border);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .mixer-slider-col {

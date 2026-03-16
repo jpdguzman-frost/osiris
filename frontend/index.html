@@ -1445,14 +1445,23 @@
         <button class="preset-pill {{#if correlationsTab === 'matrix'}}active{{/if}}" on-click="@this.switchCorrelationsTab('matrix')">Correlation Matrix</button>
       </div>
       <div class="nav-spacer"></div>
-      {{#if industries.length}}
-      <select class="filter-select" value="{{correlationsIndustry}}" on-change="@this.loadCorrelations()">
-        <option value="">All Industries</option>
-        {{#each industries}}
-        <option value="{{this.id}}">{{this.name}}</option>
-        {{/each}}
+      <select class="filter-select" value="{{correlationsFilter}}" on-change="@this.onCorrelationsFilterChange()">
+        <option value="">Global Baseline</option>
+        {{#if industries.length}}
+        <optgroup label="Industries">
+          {{#each industries}}
+          <option value="industry:{{this.id}}">{{this.name}}</option>
+          {{/each}}
+        </optgroup>
+        {{/if}}
+        {{#if bucketList.length}}
+        <optgroup label="Buckets">
+          {{#each bucketList}}
+          <option value="bucket:{{this._id}}">{{this.name}} ({{this.count}})</option>
+          {{/each}}
+        </optgroup>
+        {{/if}}
       </select>
-      {{/if}}
     </div>
 
     {{#if correlationsLoading}}

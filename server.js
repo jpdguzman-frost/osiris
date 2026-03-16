@@ -490,7 +490,7 @@ function buildDriverAnalysis(matrix, fields, target) {
 
 router.get('/api/correlations', async (req, res) => {
   try {
-    const cacheKey = req.query.industry || '__all__';
+    const cacheKey = (req.query.industry || '') + '|' + (req.query.bucket || '');
     const now = Date.now();
     if (correlationCache.data && correlationCache.key === cacheKey && (now - correlationCache.ts) < CORRELATION_TTL) {
       return res.json(correlationCache.data);
@@ -498,6 +498,10 @@ router.get('/api/correlations', async (req, res) => {
 
     const filter = {};
     if (req.query.industry) filter.industry = parseMultiFilter(req.query.industry);
+    if (req.query.bucket) {
+      const bucket = await store.getBucket(req.query.bucket);
+      if (bucket && bucket.screen_ids.length) filter.screen_id = { $in: bucket.screen_ids };
+    }
 
     // Fetch all scores
     const projection = { industry: 1 };
@@ -696,13 +700,17 @@ router.get('/api/correlations', async (req, res) => {
 
 router.post('/api/correlations/match', async (req, res) => {
   try {
-    const { targets, limit = 12, industry } = req.body || {};
+    const { targets, limit = 12, industry, bucket } = req.body || {};
     if (!targets || typeof targets !== 'object') {
       return res.status(400).json({ error: 'targets object required' });
     }
 
     const filter = {};
     if (industry) filter.industry = parseMultiFilter(industry);
+    if (bucket) {
+      const b = await store.getBucket(bucket);
+      if (b && b.screen_ids.length) filter.screen_id = { $in: b.screen_ids };
+    }
 
     const projection = { screen_id: 1, industry: 1, brand: 1, file_path: 1 };
     for (const f of FIELD_ORDER) projection[`analysis.scores.${f}`] = 1;

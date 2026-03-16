@@ -459,7 +459,9 @@ const app = new Ractive({
       correlationsLoading: false,
       correlationsError: false,
       correlationsDriverTarget: 'overall_quality',
+      correlationsFilter: '',
       correlationsIndustry: '',
+      correlationsBucket: '',
       correlationsTab: 'mixer',
       // Mixer
       mixerFields: [],
@@ -2043,12 +2045,26 @@ const app = new Ractive({
 
   // ─── Correlations ───────────────────────────────────────────────────────────
 
+  onCorrelationsFilterChange: function () {
+    var val = this.get('correlationsFilter') || '';
+    if (val.startsWith('industry:')) {
+      this.set({ correlationsIndustry: val.slice(9), correlationsBucket: '' });
+    } else if (val.startsWith('bucket:')) {
+      this.set({ correlationsIndustry: '', correlationsBucket: val.slice(7) });
+    } else {
+      this.set({ correlationsIndustry: '', correlationsBucket: '' });
+    }
+    this.loadCorrelations();
+  },
+
   loadCorrelations: async function () {
     this.set({ correlationsLoading: true, correlationsError: false });
     try {
       var params = {};
       var industry = this.get('correlationsIndustry');
+      var bucket = this.get('correlationsBucket');
       if (industry) params.industry = industry;
+      if (bucket) params.bucket = bucket;
       const data = await api.correlations(params);
       this.set({ correlationsData: data, correlationsLoading: false });
       const self = this;
@@ -2431,8 +2447,10 @@ const app = new Ractive({
     this.set('mixerScreensLoading', true);
     try {
       var industry = this.get('correlationsIndustry');
+      var bucket = this.get('correlationsBucket');
       var body = { targets: targets, limit: 16 };
       if (industry) body.industry = industry;
+      if (bucket) body.bucket = bucket;
       var result = await api.correlationsMatch(body);
       this.set({ mixerScreens: result.screens || [], mixerScreensLoading: false });
     } catch (err) {
@@ -2521,6 +2539,7 @@ function handleRoute() {
   if (route.view === 'correlations') {
     if (prevView !== 'correlations') {
       ensureIndustriesLoaded();
+      ensureBucketsLoaded();
       app.loadCorrelations();
     }
   }
