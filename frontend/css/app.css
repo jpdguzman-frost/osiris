@@ -2775,8 +2775,6 @@ img {
 
 /* Heatmap */
 .corr-heatmap-wrap {
-  display: flex;
-  justify-content: center;
   overflow-x: auto;
   padding: var(--space-4) 0;
 }
@@ -2882,14 +2880,16 @@ img {
 }
 
 .corr-explain-implication {
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   color: var(--color-text);
   line-height: var(--leading-relaxed);
-  padding: var(--space-4) var(--space-5);
-  background: var(--color-bg-raised);
-  border-left: 3px solid var(--color-accent);
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: var(--space-5) 0 0 0;
+  border-top: 2px solid var(--color-accent);
   margin-bottom: var(--space-5);
+}
+
+.corr-explain-implication strong {
+  color: var(--color-accent);
 }
 
 .corr-explain-note {

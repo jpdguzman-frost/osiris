@@ -2055,14 +2055,21 @@ const app = new Ractive({
     if (!canvas) return;
     const fields = data.fields;
     const n = fields.length;
-    const cellSize = 44;
-    const labelMargin = 140;
-    const size = labelMargin + n * cellSize;
+
+    // Size to fill available width — non-square, wider than tall
+    var container = canvas.parentElement;
+    var availW = container ? container.clientWidth : 900;
+    var leftLabelW = 160;
+    var topLabelH = 150; // room for 90° rotated labels
+    var cellSize = Math.max(36, Math.floor((availW - leftLabelW) / n));
+    var totalW = leftLabelW + n * cellSize;
+    var totalH = topLabelH + n * cellSize;
+
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = size * dpr;
-    canvas.height = size * dpr;
-    canvas.style.width = size + 'px';
-    canvas.style.height = size + 'px';
+    canvas.width = totalW * dpr;
+    canvas.height = totalH * dpr;
+    canvas.style.width = totalW + 'px';
+    canvas.style.height = totalH + 'px';
     const ctx = canvas.getContext('2d');
     ctx.scale(dpr, dpr);
 
@@ -2070,16 +2077,10 @@ const app = new Ractive({
     function corrColor(r) {
       if (r >= 0) {
         const t = Math.min(r, 1);
-        const R = Math.round(255 - (255 - 45) * t);
-        const G = Math.round(255 - (255 - 91) * t);
-        const B = Math.round(255 - (255 - 255) * t);
-        return 'rgb(' + R + ',' + G + ',' + B + ')';
+        return 'rgb(' + Math.round(255 - 210 * t) + ',' + Math.round(255 - 164 * t) + ',255)';
       } else {
         const t = Math.min(-r, 1);
-        const R = Math.round(255 - (255 - 220) * t);
-        const G = Math.round(255 - (255 - 38) * t);
-        const B = Math.round(255 - (255 - 38) * t);
-        return 'rgb(' + R + ',' + G + ',' + B + ')';
+        return 'rgb(' + Math.round(255 - 35 * t) + ',' + Math.round(255 - 217 * t) + ',' + Math.round(255 - 217 * t) + ')';
       }
     }
 
@@ -2087,8 +2088,8 @@ const app = new Ractive({
     for (let i = 0; i < n; i++) {
       for (let j = 0; j < n; j++) {
         const r = data.matrix[i][j];
-        const x = labelMargin + j * cellSize;
-        const y = labelMargin + i * cellSize;
+        const x = leftLabelW + j * cellSize;
+        const y = topLabelH + i * cellSize;
         ctx.fillStyle = corrColor(r);
         ctx.fillRect(x, y, cellSize - 1, cellSize - 1);
         // Show r value in cell
@@ -2100,16 +2101,17 @@ const app = new Ractive({
       }
     }
 
-    // Draw labels on top (rotated)
+    // Draw labels on top — 90° vertical
     ctx.fillStyle = '#1A1A1A';
     ctx.font = '500 12px Google Sans, sans-serif';
-    ctx.textAlign = 'left';
     for (let j = 0; j < n; j++) {
-      const x = labelMargin + j * cellSize + cellSize / 2;
-      const y = labelMargin - 8;
+      const x = leftLabelW + j * cellSize + cellSize / 2;
+      const y = topLabelH - 10;
       ctx.save();
       ctx.translate(x, y);
-      ctx.rotate(-Math.PI / 4);
+      ctx.rotate(-Math.PI / 2);
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
       ctx.fillText(formatFieldName(fields[j]), 0, 0);
       ctx.restore();
     }
@@ -2118,10 +2120,14 @@ const app = new Ractive({
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
     for (let i = 0; i < n; i++) {
-      const x = labelMargin - 8;
-      const y = labelMargin + i * cellSize + cellSize / 2;
+      const x = leftLabelW - 10;
+      const y = topLabelH + i * cellSize + cellSize / 2;
       ctx.fillText(formatFieldName(fields[i]), x, y);
     }
+
+    // Store dimensions for hit testing
+    var labelMargin = leftLabelW;
+    var labelMarginTop = topLabelH;
 
     // Remove prior handlers before adding new ones (prevents stacking on re-render)
     if (canvas._corrClickHandler) canvas.removeEventListener('click', canvas._corrClickHandler);
@@ -2133,7 +2139,7 @@ const app = new Ractive({
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
       const col = Math.floor((mx - labelMargin) / cellSize);
-      const row = Math.floor((my - labelMargin) / cellSize);
+      const row = Math.floor((my - labelMarginTop) / cellSize);
       if (col >= 0 && col < n && row >= 0 && row < n && col !== row) {
         app.set({ scatterX: fields[col], scatterY: fields[row] });
         app.navigate('/scatter');
@@ -2148,7 +2154,7 @@ const app = new Ractive({
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
       const col = Math.floor((mx - labelMargin) / cellSize);
-      const row = Math.floor((my - labelMargin) / cellSize);
+      const row = Math.floor((my - labelMarginTop) / cellSize);
       const valid = col >= 0 && col < n && row >= 0 && row < n && col !== row;
       canvas.style.cursor = valid ? 'pointer' : 'default';
 
