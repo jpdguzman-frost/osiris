@@ -460,6 +460,7 @@ const app = new Ractive({
       correlationsError: false,
       correlationsDriverTarget: 'overall_quality',
       correlationsIndustry: '',
+      correlationsTab: 'mixer',
       // Mixer
       mixerFields: [],
       mixerScreens: [],
@@ -2051,10 +2052,14 @@ const app = new Ractive({
       const data = await api.correlations(params);
       this.set({ correlationsData: data, correlationsLoading: false });
       const self = this;
-      setTimeout(() => waitForElements(['corr-heatmap'], () => {
-        self._renderCorrelations(data);
-        self._initMixer(data);
-      }), 0);
+      // Init mixer immediately (doesn't need canvas)
+      self._initMixer(data);
+      // Render heatmap only if matrix tab is active
+      if (self.get('correlationsTab') === 'matrix') {
+        setTimeout(() => waitForElements(['corr-heatmap'], () => {
+          self._renderCorrelations(data);
+        }), 0);
+      }
     } catch (err) {
       console.error('Correlations load error:', err);
       this.set({ correlationsLoading: false, correlationsError: true });
@@ -2340,6 +2345,17 @@ const app = new Ractive({
     if (data) this._renderDriverChart(data);
   },
 
+  switchCorrelationsTab: function (tab) {
+    this.set('correlationsTab', tab);
+    if (tab === 'matrix') {
+      var data = this.get('correlationsData');
+      if (data) {
+        var self = this;
+        setTimeout(function () { waitForElements(['corr-heatmap'], function () { self._renderHeatmap(data); }); }, 0);
+      }
+    }
+  },
+
   _initMixer: function (data) {
     var fields = data.fields.map(function (f) {
       var range = MIXER_RANGES[f] || [1, 10];
@@ -2415,7 +2431,7 @@ const app = new Ractive({
     this.set('mixerScreensLoading', true);
     try {
       var industry = this.get('correlationsIndustry');
-      var body = { targets: targets, limit: 12 };
+      var body = { targets: targets, limit: 16 };
       if (industry) body.industry = industry;
       var result = await api.correlationsMatch(body);
       this.set({ mixerScreens: result.screens || [], mixerScreensLoading: false });

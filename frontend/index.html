@@ -1439,10 +1439,12 @@
     <div class="correlations-toolbar">
       <div class="correlations-toolbar-title">
         <h1>Correlations</h1>
-        {{#if correlationsData}}
-        <span class="scatter-subtitle">{{correlationsData.count}} screens · Spearman rank correlation</span>
-        {{/if}}
       </div>
+      <div class="corr-view-tabs">
+        <button class="preset-pill {{#if correlationsTab === 'mixer'}}active{{/if}}" on-click="@this.switchCorrelationsTab('mixer')">Design Mixer</button>
+        <button class="preset-pill {{#if correlationsTab === 'matrix'}}active{{/if}}" on-click="@this.switchCorrelationsTab('matrix')">Correlation Matrix</button>
+      </div>
+      <div class="nav-spacer"></div>
       {{#if industries.length}}
       <select class="filter-select" value="{{correlationsIndustry}}" on-change="@this.loadCorrelations()">
         <option value="">All Industries</option>
@@ -1467,7 +1469,8 @@
     {{elseif correlationsData}}
     <div class="corr-editorial">
 
-    <!-- Section 1: Correlation Heatmap -->
+    {{#if correlationsTab === 'matrix'}}
+    <!-- Correlation Heatmap -->
     <div class="corr-heatmap-layout">
       <!-- Left: Heatmap -->
       <div class="corr-heatmap-col">
@@ -1530,56 +1533,10 @@
         {{/if}}
       </div>
     </div>
+    {{/if}}
 
-    <!-- Section 2: Variable Clusters -->
-    <h3 class="corr-label">Design Packages</h3>
-    <p class="corr-narrative">Dimensions that move in lockstep — adjust one and the others follow. These clusters emerged from the data, not from any predefined grouping.</p>
-    <div class="corr-clusters">
-      {{#each correlationsData.clusters}}
-      <div class="corr-cluster-card">
-        <div class="corr-cluster-label">{{this.label}}</div>
-        <div class="corr-cluster-fields">
-          {{#each this.fields}}
-          <span class="corr-chip">{{formatFieldName(this)}}</span>
-          {{/each}}
-        </div>
-      </div>
-      {{/each}}
-    </div>
-
-    <!-- Section 3: Driver Analysis -->
-    <h3 class="corr-label">What Drives Key Outcomes?</h3>
-    <p class="corr-narrative">Dimensions most associated with each target outcome. Longer bars mean a stronger relationship — blue moves together, red pulls apart.</p>
-    <div class="corr-driver-tabs">
-      <button class="preset-pill {{#if correlationsDriverTarget === 'overall_quality'}}active{{/if}}" on-click="@this.switchDriverTarget('overall_quality')">Overall Quality</button>
-      <button class="preset-pill {{#if correlationsDriverTarget === 'calm_confident'}}active{{/if}}" on-click="@this.switchDriverTarget('calm_confident')">Calm & Confident</button>
-      <button class="preset-pill {{#if correlationsDriverTarget === 'bold_forward'}}active{{/if}}" on-click="@this.switchDriverTarget('bold_forward')">Bold & Forward</button>
-    </div>
-    <div class="corr-driver-wrap">
-      <canvas id="corr-driver-chart"></canvas>
-    </div>
-
-    <!-- Section 4: Design Tradeoffs -->
-    <h3 class="corr-label">Design Tensions</h3>
-    <p class="corr-narrative">The strongest tradeoffs — pushing one dimension comes at the cost of another. Each dot represents an industry's average position.</p>
-    <div class="corr-tradeoff-grid">
-      {{#each correlationsData.tradeoffs}}
-      <div class="corr-tradeoff-card">
-        <div class="corr-tradeoff-header">
-          <span class="corr-tradeoff-title">{{formatFieldName(this.pair[0])}} vs {{formatFieldName(this.pair[1])}}</span>
-          <span class="corr-tradeoff-badge">r = {{this.r.toFixed(2)}}</span>
-        </div>
-        <div class="corr-tradeoff-chart">
-          <canvas id="corr-tradeoff-{{@index}}"></canvas>
-        </div>
-        {{#if this.insight}}
-        <p class="corr-tradeoff-insight">{{this.insight}}</p>
-        {{/if}}
-      </div>
-      {{/each}}
-    </div>
-
-    <!-- Section 5: Design Mixer -->
+    {{#if correlationsTab === 'mixer'}}
+    <!-- Design Mixer -->
     <h3 class="corr-label">Design Mixer</h3>
     <p class="corr-narrative">Drag any slider to explore how dimensions respond to each other. The screens below update to show real examples closest to your configuration.</p>
 
@@ -1622,6 +1579,7 @@
       </div>
       {{/each}}
     </div>
+    {{/if}}
     {{/if}}
 
     </div>
