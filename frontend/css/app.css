@@ -2810,8 +2810,7 @@ img {
 }
 
 .corr-heatmap-col {
-  max-height: 80vh;
-  overflow: auto;
+  /* Canvas sizes itself dynamically in JS */
 }
 
 /* Explanation panel */

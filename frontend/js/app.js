@@ -2056,12 +2056,11 @@ const app = new Ractive({
     const fields = data.fields;
     const n = fields.length;
 
-    // Size to fill available width — non-square, wider than tall
-    var container = canvas.parentElement;
-    var availW = container ? container.clientWidth : 900;
+    // Size to fit within 80vh so the explanation panel stays visible
+    var maxH = Math.floor(window.innerHeight * 0.8);
     var leftLabelW = 160;
     var topLabelH = 150; // room for 90° rotated labels
-    var cellSize = Math.max(36, Math.floor((availW - leftLabelW) / n));
+    var cellSize = Math.max(28, Math.floor((maxH - topLabelH) / n));
     var totalW = leftLabelW + n * cellSize;
     var totalH = topLabelH + n * cellSize;
 
