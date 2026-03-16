@@ -85,6 +85,7 @@ const api = {
   similar:      (id, p) => api.get('/api/similar/' + encodeURIComponent(id) + '?' + new URLSearchParams(p)),
   scatter:      (p) => api.get('/api/scatter?' + new URLSearchParams(p)),
   benchmark:    (p) => api.get('/api/benchmark?' + new URLSearchParams(p)),
+  correlations: (p) => api.get('/api/correlations?' + new URLSearchParams(p || {})),
   brands:       (p) => api.get('/api/brands?' + new URLSearchParams(p || {})),
   buckets:      () => api.get('/api/buckets'),
   bucket:       (id, p) => api.get('/api/buckets/' + encodeURIComponent(id) + '?' + new URLSearchParams(p)),
@@ -205,12 +206,15 @@ const PRESET_LABELS = {
 
 const INDUSTRY_COLORS = {
   fintech:       '#2D5BFF',
-  luxury:        '#000000',
+  luxury:        '#8B5CF6',
   aerospace:     '#6366F1',
   automotive:    '#059669',
   gaming:        '#DC2626',
   health:        '#0891B2',
-  gcash_current: '#F59E0B',
+  ecommerce:     '#F59E0B',
+  healthcare:    '#16A34A',
+  education:     '#06B6D4',
+  gcash_current: '#0070E0',
 };
 
 const AXIS_LABELS = {
@@ -296,6 +300,7 @@ function getRoute() {
   if (hash.startsWith('/bucket/')) return { view: 'bucketDetail', id: decodeURIComponent(hash.slice(8)) };
   if (hash === '/scatter' || hash.startsWith('/scatter')) return { view: 'scatter' };
   if (hash === '/benchmark' || hash.startsWith('/benchmark')) return { view: 'benchmark' };
+  if (hash === '/correlations' || hash.startsWith('/correlations')) return { view: 'correlations' };
   return { view: 'dashboard' };
 }
 
@@ -320,6 +325,7 @@ const app = new Ractive({
     bucketDetail: Ractive.parse(document.getElementById('bucket-detail-template').textContent),
     scatter: Ractive.parse(document.getElementById('scatter-template').textContent),
     benchmark: Ractive.parse(document.getElementById('benchmark-template').textContent),
+    correlations: Ractive.parse(document.getElementById('correlations-template').textContent),
   },
 
   data: function () {
@@ -438,6 +444,13 @@ const app = new Ractive({
       benchmarkEvidenceField: null,
       benchmarkEvidenceScreens: [],
       benchmarkEvidenceLoading: false,
+
+      // Correlations
+      correlationsData: null,
+      correlationsLoading: false,
+      correlationsError: false,
+      correlationsDriverTarget: 'overall_quality',
+      correlationsIndustry: '',
 
       // Buckets
       bucketList: [],
@@ -2011,6 +2024,237 @@ const app = new Ractive({
       console.error('Scatter bucket overlay error:', err);
     }
   },
+
+  // ─── Correlations ───────────────────────────────────────────────────────────
+
+  loadCorrelations: async function () {
+    this.set({ correlationsLoading: true, correlationsError: false });
+    try {
+      var params = {};
+      var industry = this.get('correlationsIndustry');
+      if (industry) params.industry = industry;
+      const data = await api.correlations(params);
+      this.set({ correlationsData: data, correlationsLoading: false });
+      const self = this;
+      setTimeout(() => waitForElements(['corr-heatmap'], () => self._renderCorrelations(data)), 0);
+    } catch (err) {
+      console.error('Correlations load error:', err);
+      this.set({ correlationsLoading: false, correlationsError: true });
+    }
+  },
+
+  _renderCorrelations: function (data) {
+    this._renderHeatmap(data);
+    this._renderDriverChart(data);
+    this._renderTradeoffCharts(data);
+  },
+
+  _renderHeatmap: function (data) {
+    const canvas = document.getElementById('corr-heatmap');
+    if (!canvas) return;
+    const fields = data.fields;
+    const n = fields.length;
+    const cellSize = 44;
+    const labelMargin = 140;
+    const size = labelMargin + n * cellSize;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+    canvas.style.width = size + 'px';
+    canvas.style.height = size + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    // Color scale: blue (#2D5BFF) at +1, white at 0, red (#DC2626) at -1
+    function corrColor(r) {
+      if (r >= 0) {
+        const t = Math.min(r, 1);
+        const R = Math.round(255 - (255 - 45) * t);
+        const G = Math.round(255 - (255 - 91) * t);
+        const B = Math.round(255 - (255 - 255) * t);
+        return 'rgb(' + R + ',' + G + ',' + B + ')';
+      } else {
+        const t = Math.min(-r, 1);
+        const R = Math.round(255 - (255 - 220) * t);
+        const G = Math.round(255 - (255 - 38) * t);
+        const B = Math.round(255 - (255 - 38) * t);
+        return 'rgb(' + R + ',' + G + ',' + B + ')';
+      }
+    }
+
+    // Draw cells
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        const r = data.matrix[i][j];
+        const x = labelMargin + j * cellSize;
+        const y = labelMargin + i * cellSize;
+        ctx.fillStyle = corrColor(r);
+        ctx.fillRect(x, y, cellSize - 1, cellSize - 1);
+        // Show r value in cell
+        ctx.fillStyle = Math.abs(r) > 0.5 ? '#fff' : '#333';
+        ctx.font = '500 11px Google Sans, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(r.toFixed(2), x + cellSize / 2, y + cellSize / 2);
+      }
+    }
+
+    // Draw labels on top (rotated)
+    ctx.fillStyle = '#1A1A1A';
+    ctx.font = '500 12px Google Sans, sans-serif';
+    ctx.textAlign = 'left';
+    for (let j = 0; j < n; j++) {
+      const x = labelMargin + j * cellSize + cellSize / 2;
+      const y = labelMargin - 8;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(-Math.PI / 4);
+      ctx.fillText(formatFieldName(fields[j]), 0, 0);
+      ctx.restore();
+    }
+
+    // Draw labels on left
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < n; i++) {
+      const x = labelMargin - 8;
+      const y = labelMargin + i * cellSize + cellSize / 2;
+      ctx.fillText(formatFieldName(fields[i]), x, y);
+    }
+
+    // Remove prior handlers before adding new ones (prevents stacking on re-render)
+    if (canvas._corrClickHandler) canvas.removeEventListener('click', canvas._corrClickHandler);
+    if (canvas._corrMoveHandler) canvas.removeEventListener('mousemove', canvas._corrMoveHandler);
+
+    // Click handler — navigate to scatter with selected pair
+    canvas._corrClickHandler = function (e) {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const col = Math.floor((mx - labelMargin) / cellSize);
+      const row = Math.floor((my - labelMargin) / cellSize);
+      if (col >= 0 && col < n && row >= 0 && row < n && col !== row) {
+        app.set({ scatterX: fields[col], scatterY: fields[row] });
+        app.navigate('/scatter');
+      }
+    };
+    canvas.addEventListener('click', canvas._corrClickHandler);
+
+    // Hover cursor
+    canvas._corrMoveHandler = function (e) {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const col = Math.floor((mx - labelMargin) / cellSize);
+      const row = Math.floor((my - labelMargin) / cellSize);
+      canvas.style.cursor = (col >= 0 && col < n && row >= 0 && row < n && col !== row) ? 'pointer' : 'default';
+    };
+    canvas.addEventListener('mousemove', canvas._corrMoveHandler);
+  },
+
+  _renderDriverChart: function (data) {
+    const target = this.get('correlationsDriverTarget') || 'overall_quality';
+    const drivers = data.drivers[target];
+    if (!drivers) return;
+    const canvas = document.getElementById('corr-driver-chart');
+    if (!canvas) return;
+
+    if (this._driverChart) this._driverChart.destroy();
+
+    this._driverChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: drivers.map(d => formatFieldName(d.field)),
+        datasets: [{
+          data: drivers.map(d => d.r),
+          backgroundColor: drivers.map(d => d.r >= 0 ? 'rgba(45, 91, 255, 0.7)' : 'rgba(220, 38, 38, 0.7)'),
+          borderColor: drivers.map(d => d.r >= 0 ? '#2D5BFF' : '#DC2626'),
+          borderWidth: 1,
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              afterLabel: function (ctx) {
+                return drivers[ctx.dataIndex].insight;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            min: -1, max: 1,
+            title: { display: true, text: 'Correlation (r)', font: { family: 'Google Sans', size: 12 } },
+            grid: { color: '#EEEEEF' },
+          },
+          y: {
+            grid: { display: false },
+            ticks: { font: { family: 'Google Sans', size: 12 } },
+          }
+        },
+      },
+    });
+  },
+
+  _renderTradeoffCharts: function (data) {
+    if (this._tradeoffCharts) {
+      this._tradeoffCharts.forEach(c => c.destroy());
+    }
+    this._tradeoffCharts = [];
+
+    data.tradeoffs.forEach((t, idx) => {
+      const canvas = document.getElementById('corr-tradeoff-' + idx);
+      if (!canvas) return;
+
+      const datasets = [];
+      const industries = Object.keys(t.by_industry);
+      industries.forEach(ind => {
+        const d = t.by_industry[ind];
+        datasets.push({
+          label: ind.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+          data: [{ x: d.x_mean, y: d.y_mean }],
+          backgroundColor: INDUSTRY_COLORS[ind] || '#93939E',
+          pointRadius: 8,
+          pointHoverRadius: 10,
+        });
+      });
+
+      const chart = new Chart(canvas, {
+        type: 'scatter',
+        data: { datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: true, position: 'bottom', labels: { boxWidth: 8, usePointStyle: true, font: { size: 10, family: 'Google Sans' } } },
+          },
+          scales: {
+            x: {
+              title: { display: true, text: formatFieldName(t.pair[0]), font: { family: 'Google Sans', size: 11 } },
+              grid: { color: '#EEEEEF' },
+            },
+            y: {
+              title: { display: true, text: formatFieldName(t.pair[1]), font: { family: 'Google Sans', size: 11 } },
+              grid: { color: '#EEEEEF' },
+            },
+          },
+        },
+      });
+      this._tradeoffCharts.push(chart);
+    });
+  },
+
+  switchDriverTarget: function (target) {
+    this.set('correlationsDriverTarget', target);
+    var data = this.get('correlationsData');
+    if (data) this._renderDriverChart(data);
+  },
 });
 
 // ─── Route Handling ──────────────────────────────────────────────────────────
@@ -2056,31 +2300,47 @@ function handleRoute() {
     app.set('bucketPage', 1);
     app.loadBucketDetail(route.id);
   }
-  if (route.view === 'benchmark') {
-    // Ensure industries, brands, and buckets are loaded (shared with other views)
+  // Shared data loaders — called by views that need industry/bucket lists
+  function ensureIndustriesLoaded() {
     if (!app.get('industries').length) {
       api.industries().then(data => {
         app.set('industries', data.industries.filter(i => i.count > 0).sort((a, b) => b.count - a.count));
       }).catch(() => {});
     }
+  }
+  function ensureBucketsLoaded() {
     if (!app.get('bucketList').length) {
       api.buckets().then(data => {
         app.set('bucketList', data.buckets || []);
       }).catch(() => {});
     }
   }
+
+  if (route.view === 'benchmark') {
+    ensureIndustriesLoaded();
+    ensureBucketsLoaded();
+  }
+  // Clean up correlations charts when leaving
+  if (prevView === 'correlations' && route.view !== 'correlations') {
+    if (app._driverChart) { app._driverChart.destroy(); app._driverChart = null; }
+    if (app._tradeoffCharts) { app._tradeoffCharts.forEach(c => c.destroy()); app._tradeoffCharts = null; }
+    var heatmapCanvas = document.getElementById('corr-heatmap');
+    if (heatmapCanvas) {
+      heatmapCanvas.removeEventListener('click', heatmapCanvas._corrClickHandler);
+      heatmapCanvas.removeEventListener('mousemove', heatmapCanvas._corrMoveHandler);
+    }
+  }
+
+  if (route.view === 'correlations') {
+    if (prevView !== 'correlations') {
+      ensureIndustriesLoaded();
+      app.loadCorrelations();
+    }
+  }
+
   if (route.view === 'scatter') {
-    // Ensure industries are available for the filter dropdown
-    if (!app.get('industries').length) {
-      api.industries().then(data => {
-        const industries = data.industries.filter(i => i.count > 0).sort((a, b) => b.count - a.count);
-        app.set('industries', industries);
-      });
-    }
-    // Preload bucket list for overlay dropdown
-    if (!app.get('bucketList').length) {
-      api.buckets().then(data => app.set('bucketList', data.buckets)).catch(() => {});
-    }
+    ensureIndustriesLoaded();
+    ensureBucketsLoaded();
     if (prevView !== 'scatter') {
       app.loadScatter();
     }

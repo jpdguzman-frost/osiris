@@ -197,7 +197,7 @@ export async function promisePool(items, concurrency, fn) {
 
 // ─── Project Paths ────────────────────────────────────────────────────────────
 
-const ROOT = path.resolve(new URL('..', import.meta.url).pathname);
+const ROOT = path.resolve(decodeURIComponent(new URL('..', import.meta.url).pathname));
 
 export const PATHS = {
   root: ROOT,

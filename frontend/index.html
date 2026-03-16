@@ -32,6 +32,7 @@
       <div class="nav-link {{#if currentView === 'buckets' || currentView === 'bucketDetail'}}active{{/if}}" on-click="@this.navigate('/buckets')">Buckets</div>
       <div class="nav-link {{#if currentView === 'scatter'}}active{{/if}}" on-click="@this.navigate('/scatter')">Scatter</div>
       <div class="nav-link {{#if currentView === 'benchmark'}}active{{/if}}" on-click="@this.navigate('/benchmark')">Benchmark</div>
+      <div class="nav-link {{#if currentView === 'correlations'}}active{{/if}}" on-click="@this.navigate('/correlations')">Correlations</div>
     </div>
     <div class="nav-spacer"></div>
     {{#if stats}}
@@ -52,6 +53,8 @@
       {{>scatter}}
     {{elseif currentView === 'benchmark'}}
       {{>benchmark}}
+    {{elseif currentView === 'correlations'}}
+      {{>correlations}}
     {{elseif currentView === 'detail'}}
       {{>detail}}
     {{/if}}
@@ -1425,6 +1428,134 @@
       <div class="empty-state-title">Select a group and click Compare</div>
       <p>See how a brand, industry, or bucket's design scores compare against a benchmark.</p>
     </div>
+    {{/if}}
+  </div>
+</script>
+
+<script id="correlations-template" type="text/ractive">
+  <div class="correlations-page">
+
+    <!-- Toolbar -->
+    <div class="correlations-toolbar">
+      <div class="correlations-toolbar-title">
+        <h1>Correlations</h1>
+        {{#if correlationsData}}
+        <span class="scatter-subtitle">{{correlationsData.count}} screens · Spearman rank correlation</span>
+        {{/if}}
+      </div>
+      {{#if industries.length}}
+      <select class="filter-select" value="{{correlationsIndustry}}" on-change="@this.loadCorrelations()">
+        <option value="">All Industries</option>
+        {{#each industries}}
+        <option value="{{this.id}}">{{this.name}}</option>
+        {{/each}}
+      </select>
+      {{/if}}
+    </div>
+
+    {{#if correlationsLoading}}
+    <div class="corr-loading">
+      <div class="loading"><span class="loading-dot"></span><span class="loading-dot"></span><span class="loading-dot"></span></div>
+      <p>Analyzing relationships across all screens...</p>
+    </div>
+
+    {{elseif correlationsError}}
+    <div class="corr-loading">
+      <p>Failed to load correlation data. Try refreshing.</p>
+    </div>
+
+    {{elseif correlationsData}}
+
+    <!-- Section 1: Correlation Heatmap -->
+    <div class="corr-section">
+      <div class="corr-section-title">Relationship Matrix</div>
+      <p class="corr-section-desc">How every design dimension relates to every other. Blue = move together, red = pull apart. Click any cell to explore in Scatter view.</p>
+      <div class="corr-heatmap-wrap">
+        <canvas id="corr-heatmap"></canvas>
+      </div>
+      <div class="corr-legend">
+        <span class="corr-legend-label">-1 (tradeoff)</span>
+        <div class="corr-legend-bar"></div>
+        <span class="corr-legend-label">+1 (moves together)</span>
+      </div>
+    </div>
+
+    <!-- Section 2: Variable Clusters -->
+    <div class="corr-section">
+      <div class="corr-section-title">Design Packages</div>
+      <p class="corr-section-desc">Dimensions that move in lockstep — adjust one and the others follow.</p>
+      <div class="corr-clusters">
+        {{#each correlationsData.clusters}}
+        <div class="corr-cluster-card">
+          <div class="corr-cluster-label">{{this.label}}</div>
+          <div class="corr-cluster-fields">
+            {{#each this.fields}}
+            <span class="corr-chip">{{formatFieldName(this)}}</span>
+            {{/each}}
+          </div>
+        </div>
+        {{/each}}
+      </div>
+    </div>
+
+    <!-- Section 3: Driver Analysis -->
+    <div class="corr-section">
+      <div class="corr-section-title">What Drives Key Outcomes?</div>
+      <p class="corr-section-desc">Dimensions most associated with each target outcome. Bars show correlation strength — longer = stronger relationship.</p>
+      <div class="corr-driver-tabs">
+        <button class="corr-driver-tab {{#if correlationsDriverTarget === 'overall_quality'}}active{{/if}}" on-click="@this.switchDriverTarget('overall_quality')">Overall Quality</button>
+        <button class="corr-driver-tab {{#if correlationsDriverTarget === 'calm_confident'}}active{{/if}}" on-click="@this.switchDriverTarget('calm_confident')">Calm & Confident</button>
+        <button class="corr-driver-tab {{#if correlationsDriverTarget === 'bold_forward'}}active{{/if}}" on-click="@this.switchDriverTarget('bold_forward')">Bold & Forward</button>
+      </div>
+      <div class="corr-driver-wrap">
+        <canvas id="corr-driver-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Section 4: Design Tradeoffs -->
+    <div class="corr-section">
+      <div class="corr-section-title">Design Tensions</div>
+      <p class="corr-section-desc">The strongest tradeoffs — pushing one dimension comes at the cost of another. Each dot represents an industry's average position.</p>
+      <div class="corr-tradeoff-grid">
+        {{#each correlationsData.tradeoffs}}
+        <div class="corr-tradeoff-card">
+          <div class="corr-tradeoff-header">
+            <span class="corr-tradeoff-title">{{formatFieldName(this.pair[0])}} vs {{formatFieldName(this.pair[1])}}</span>
+            <span class="corr-tradeoff-badge">r = {{this.r.toFixed(2)}}</span>
+          </div>
+          <div class="corr-tradeoff-chart">
+            <canvas id="corr-tradeoff-{{@index}}"></canvas>
+          </div>
+          {{#if this.insight}}
+          <p class="corr-tradeoff-insight">{{this.insight}}</p>
+          {{/if}}
+        </div>
+        {{/each}}
+      </div>
+    </div>
+
+    <!-- Section 5: Design Levers -->
+    <div class="corr-section">
+      <div class="corr-section-title">Cause & Effect</div>
+      <p class="corr-section-desc">Plain-language relationships — what happens when you push each design lever.</p>
+      <div class="corr-lever-grid">
+        {{#each correlationsData.levers}}
+        <div class="corr-lever-card">
+          <div class="corr-lever-trigger">{{formatFieldName(this.trigger)}}</div>
+          <p class="corr-lever-summary">{{this.summary}}</p>
+          <div class="corr-lever-effects">
+            {{#each this.effect_up}}
+            <span class="corr-effect-up">&#8593; {{formatFieldName(this)}}</span>
+            {{/each}}
+            {{#each this.effect_down}}
+            <span class="corr-effect-down">&#8595; {{formatFieldName(this)}}</span>
+            {{/each}}
+          </div>
+        </div>
+        {{/each}}
+      </div>
+    </div>
+
     {{/if}}
   </div>
 </script>

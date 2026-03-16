@@ -267,6 +267,321 @@ router.get('/api/scatter', async (req, res) => {
   }
 });
 
+// ─── API: Correlations ──────────────────────────────────────────────────────
+
+let correlationCache = { data: null, ts: 0, key: '' };
+const CORRELATION_TTL = 5 * 60 * 1000; // 5 minutes
+
+const FIELD_ORDER = [...SCORE_FIELD_LISTS.core, ...SCORE_FIELD_LISTS.spectrum];
+const FIELD_LABELS = Object.fromEntries(
+  FIELD_ORDER.map(f => [f, f.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ')])
+);
+
+function pearsonOnValues(xs, ys) {
+  const n = xs.length;
+  if (n < 3) return 0;
+  let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
+  for (let i = 0; i < n; i++) {
+    sumX += xs[i]; sumY += ys[i];
+    sumXY += xs[i] * ys[i];
+    sumX2 += xs[i] * xs[i];
+    sumY2 += ys[i] * ys[i];
+  }
+  const denom = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+  if (denom === 0) return 0;
+  return (n * sumXY - sumX * sumY) / denom;
+}
+
+// Spearman rank correlation (Pearson on ranks) — more robust for ordinal integer scores
+function rankArray(arr) {
+  const indexed = arr.map((v, i) => ({ v, i }));
+  indexed.sort((a, b) => a.v - b.v);
+  const ranks = new Array(arr.length);
+  let pos = 0;
+  while (pos < indexed.length) {
+    let end = pos + 1;
+    while (end < indexed.length && indexed[end].v === indexed[pos].v) end++;
+    const avgRank = (pos + end - 1) / 2 + 1; // average rank for ties
+    for (let k = pos; k < end; k++) ranks[indexed[k].i] = avgRank;
+    pos = end;
+  }
+  return ranks;
+}
+
+function spearman(xs, ys) {
+  return pearsonOnValues(rankArray(xs), rankArray(ys));
+}
+
+// Semantic overlap pairs — correlations that are partly definitional, not purely visual
+const SEMANTIC_OVERLAPS = new Set([
+  'calm_confident|calm_energetic',
+  'bold_forward|forward_conservative',
+  'confident_tentative|calm_confident',
+  'density|whitespace_ratio',
+]);
+
+function isSemanticOverlap(f1, f2) {
+  return SEMANTIC_OVERLAPS.has(`${f1}|${f2}`) || SEMANTIC_OVERLAPS.has(`${f2}|${f1}`);
+}
+
+function strengthLabel(absR) {
+  if (absR >= 0.5) return 'strong';
+  if (absR >= 0.3) return 'moderate';
+  if (absR >= 0.15) return 'weak';
+  return 'negligible';
+}
+
+function clusterFields(matrix, fields, threshold = 0.55) {
+  // Agglomerative clustering using distance = 1 - |r|
+  let clusters = fields.map((f, i) => ({ members: [i], label: '' }));
+  const dist = (a, b) => {
+    // Average linkage between cluster members
+    let sum = 0, count = 0;
+    for (const i of a.members) {
+      for (const j of b.members) {
+        sum += 1 - Math.abs(matrix[i][j]);
+        count++;
+      }
+    }
+    return sum / count;
+  };
+
+  while (clusters.length > 2) {
+    let bestDist = Infinity, bestI = -1, bestJ = -1;
+    for (let i = 0; i < clusters.length; i++) {
+      for (let j = i + 1; j < clusters.length; j++) {
+        const d = dist(clusters[i], clusters[j]);
+        if (d < bestDist) { bestDist = d; bestI = i; bestJ = j; }
+      }
+    }
+    if (bestDist > threshold) break;
+    const merged = { members: [...clusters[bestI].members, ...clusters[bestJ].members], label: '' };
+    clusters = clusters.filter((_, idx) => idx !== bestI && idx !== bestJ);
+    clusters.push(merged);
+  }
+
+  // Auto-label clusters — each field maps to a descriptive label for its primary theme
+  const FIELD_THEME = {
+    overall_quality: 'Quality Fundamentals',
+    hierarchy_clarity: 'Quality Fundamentals',
+    glanceability: 'Quality Fundamentals',
+    color_restraint: 'Visual Restraint',
+    whitespace_ratio: 'Visual Restraint',
+    calm_energetic: 'Visual Restraint',
+    bold_forward: 'Design Energy',
+    density: 'Design Energy',
+    calm_confident: 'Confidence & Trust',
+    brand_confidence: 'Confidence & Trust',
+    confident_tentative: 'Confidence & Trust',
+    premium_accessible: 'Audience Positioning',
+    warm_clinical: 'Emotional Tone',
+    forward_conservative: 'Innovation Stance',
+  };
+
+  const usedLabels = new Set();
+  return clusters.map((c, id) => {
+    const memberFields = c.members.map(i => fields[i]);
+    // Pick the most common theme among members
+    const themeCounts = {};
+    for (const f of memberFields) {
+      const t = FIELD_THEME[f] || 'Mixed';
+      themeCounts[t] = (themeCounts[t] || 0) + 1;
+    }
+    let label = Object.entries(themeCounts).sort((a, b) => b[1] - a[1])[0][0];
+    // Deduplicate labels
+    if (usedLabels.has(label)) {
+      // For single-field clusters, use the field's own name
+      if (memberFields.length === 1) {
+        label = FIELD_LABELS[memberFields[0]] || label;
+      } else {
+        label = label + ' II';
+      }
+    }
+    usedLabels.add(label);
+    return { id, label, fields: memberFields };
+  });
+}
+
+function buildDriverAnalysis(matrix, fields, target) {
+  const ti = fields.indexOf(target);
+  if (ti === -1) return [];
+  return fields
+    .map((f, i) => ({ field: f, r: +matrix[ti][i].toFixed(3), absR: Math.abs(matrix[ti][i]) }))
+    .filter(d => d.field !== target)
+    .sort((a, b) => b.absR - a.absR)
+    .map(d => {
+      const dir = d.r > 0 ? 'positive' : 'negative';
+      const strength = d.absR > 0.5 ? 'strongly' : d.absR > 0.3 ? 'moderately' : 'weakly';
+      const verb = d.r > 0 ? 'rises with' : 'falls as';
+      const overlap = isSemanticOverlap(d.field, target);
+      return {
+        field: d.field,
+        r: d.r,
+        direction: dir,
+        strength: strengthLabel(d.absR),
+        semantic_overlap: overlap,
+        insight: `${FIELD_LABELS[d.field]} ${strength} ${verb} ${FIELD_LABELS[target]}.` + (overlap ? ' (shared definition — interpret with care)' : ''),
+      };
+    });
+}
+
+router.get('/api/correlations', async (req, res) => {
+  try {
+    const cacheKey = req.query.industry || '__all__';
+    const now = Date.now();
+    if (correlationCache.data && correlationCache.key === cacheKey && (now - correlationCache.ts) < CORRELATION_TTL) {
+      return res.json(correlationCache.data);
+    }
+
+    const filter = {};
+    if (req.query.industry) filter.industry = parseMultiFilter(req.query.industry);
+
+    // Fetch all scores
+    const projection = { industry: 1 };
+    for (const f of FIELD_ORDER) projection[`analysis.scores.${f}`] = 1;
+    const screens = await store.db.collection('screens').find(filter).project(projection).toArray();
+
+    // Extract score vectors per field
+    const vectors = {};
+    for (const f of FIELD_ORDER) vectors[f] = [];
+    const industries = [];
+
+    for (const s of screens) {
+      const scores = s.analysis?.scores;
+      if (!scores) continue;
+      // Only include screens that have all fields
+      const allValid = FIELD_ORDER.every(f => typeof scores[f] === 'number');
+      if (!allValid) continue;
+      for (const f of FIELD_ORDER) vectors[f].push(scores[f]);
+      industries.push(s.industry);
+    }
+
+    const count = vectors[FIELD_ORDER[0]].length;
+    const n = FIELD_ORDER.length;
+
+    // Pre-compute ranks once per field (avoids 182 sorts → only 14)
+    const rankedVectors = {};
+    for (const f of FIELD_ORDER) rankedVectors[f] = rankArray(vectors[f]);
+
+    // Compute 14x14 Spearman rank correlation matrix (robust for ordinal integer scores)
+    const matrix = Array.from({ length: n }, () => Array(n).fill(0));
+    for (let i = 0; i < n; i++) {
+      matrix[i][i] = 1.0;
+      for (let j = i + 1; j < n; j++) {
+        const r = pearsonOnValues(rankedVectors[FIELD_ORDER[i]], rankedVectors[FIELD_ORDER[j]]);
+        matrix[i][j] = +r.toFixed(4);
+        matrix[j][i] = +r.toFixed(4);
+      }
+    }
+
+    // Edges: pairs with |r| > 0.15 (effect-size threshold — at n=4600 even tiny r is significant)
+    const edges = [];
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        if (Math.abs(matrix[i][j]) > 0.15) {
+          const f1 = FIELD_ORDER[i], f2 = FIELD_ORDER[j];
+          edges.push({
+            from: f1, to: f2, r: matrix[i][j],
+            strength: strengthLabel(Math.abs(matrix[i][j])),
+            semantic_overlap: isSemanticOverlap(f1, f2),
+          });
+        }
+      }
+    }
+    edges.sort((a, b) => Math.abs(b.r) - Math.abs(a.r));
+
+    // Clusters
+    const clusters = clusterFields(matrix, FIELD_ORDER);
+
+    // Driver analysis for 3 key outcomes
+    const drivers = {
+      overall_quality: buildDriverAnalysis(matrix, FIELD_ORDER, 'overall_quality'),
+      calm_confident: buildDriverAnalysis(matrix, FIELD_ORDER, 'calm_confident'),
+      bold_forward: buildDriverAnalysis(matrix, FIELD_ORDER, 'bold_forward'),
+    };
+
+    // Top 6 tradeoffs (most negatively correlated pairs)
+    const allPairs = [];
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        allPairs.push({ i, j, r: matrix[i][j] });
+      }
+    }
+    const negativePairs = allPairs.filter(p => p.r < -0.1);
+    negativePairs.sort((a, b) => a.r - b.r);
+
+    // Build industry index map in one pass, then compute means
+    const industryIndices = {};
+    for (let k = 0; k < industries.length; k++) {
+      (industryIndices[industries[k]] ??= []).push(k);
+    }
+    const industryMeans = {};
+    for (const [ind, idx] of Object.entries(industryIndices)) {
+      industryMeans[ind] = {};
+      for (const f of FIELD_ORDER) {
+        let sum = 0;
+        for (const k of idx) sum += vectors[f][k];
+        industryMeans[ind][f] = +(sum / idx.length).toFixed(2);
+      }
+    }
+    const industrySet = Object.keys(industryIndices);
+
+    const tradeoffs = negativePairs.slice(0, 6).map(p => {
+      const f1 = FIELD_ORDER[p.i], f2 = FIELD_ORDER[p.j];
+      const byIndustry = {};
+      for (const ind of industrySet) {
+        byIndustry[ind] = { x_mean: industryMeans[ind][f1], y_mean: industryMeans[ind][f2] };
+      }
+      return {
+        pair: [f1, f2],
+        r: +p.r.toFixed(4),
+        insight: `${FIELD_LABELS[f1]} and ${FIELD_LABELS[f2]} pull in opposite directions — screens that score high on one tend to score low on the other.`,
+        by_industry: byIndustry,
+      };
+    });
+
+    // Design lever cards: top 8 strongest correlations (positive and negative)
+    const sortedByStrength = [...allPairs].sort((a, b) => Math.abs(b.r) - Math.abs(a.r)).slice(0, 8);
+    const levers = sortedByStrength.map(p => {
+      const trigger = FIELD_ORDER[p.i];
+      const target = FIELD_ORDER[p.j];
+      if (p.r > 0) {
+        return {
+          trigger,
+          effect_up: [target],
+          effect_down: [],
+          summary: `Increasing ${FIELD_LABELS[trigger]} tends to raise ${FIELD_LABELS[target]}.`,
+        };
+      } else {
+        return {
+          trigger,
+          effect_up: [],
+          effect_down: [target],
+          summary: `Pushing ${FIELD_LABELS[trigger]} higher comes at the cost of ${FIELD_LABELS[target]}.`,
+        };
+      }
+    });
+
+    const result = {
+      fields: FIELD_ORDER,
+      field_labels: FIELD_LABELS,
+      method: 'spearman',
+      count,
+      matrix,
+      clusters,
+      edges,
+      drivers,
+      tradeoffs,
+      levers,
+    };
+
+    correlationCache = { data: result, ts: now, key: cacheKey };
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── API: Benchmark ─────────────────────────────────────────────────────────
 
 router.get('/api/benchmark', async (req, res) => {
@@ -655,6 +970,18 @@ router.post('/api/buckets/import-distillation', async (req, res) => {
     res.json({ ok: true, bucket_name: name, count: distillation.screen_ids.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Rubric ─────────────────────────────────────────────────────────────
+
+router.get('/api/rubric', async (req, res) => {
+  try {
+    const rubricPath = path.join(PATHS.config, 'rubric.md');
+    const text = await fs.readFile(rubricPath, 'utf-8');
+    res.type('text/plain').send(text);
+  } catch (err) {
+    res.status(500).json({ error: 'Rubric file not found' });
   }
 });
 
