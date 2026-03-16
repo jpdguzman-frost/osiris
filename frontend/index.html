@@ -1465,153 +1465,144 @@
     </div>
 
     {{elseif correlationsData}}
+    <div class="corr-editorial">
 
     <!-- Section 1: Correlation Heatmap -->
-    <div class="corr-section corr-heatmap-section">
-      <div class="corr-section-title">Relationship Matrix</div>
-      <p class="corr-section-desc">Hover any cell to understand the relationship. Click to explore in Scatter view.</p>
+    <h3 class="corr-label">Relationship Matrix</h3>
 
-      <div class="corr-heatmap-layout">
-        <!-- Left: Heatmap -->
-        <div class="corr-heatmap-col">
-          <div class="corr-heatmap-wrap">
-            <canvas id="corr-heatmap"></canvas>
-          </div>
-          <div class="corr-legend">
-            <span class="corr-legend-label">-1 (tradeoff)</span>
-            <div class="corr-legend-bar"></div>
-            <span class="corr-legend-label">+1 (moves together)</span>
-          </div>
+    <div class="corr-heatmap-layout">
+      <!-- Left: Heatmap -->
+      <div class="corr-heatmap-col">
+        <div class="corr-heatmap-wrap">
+          <canvas id="corr-heatmap"></canvas>
         </div>
+        <div class="corr-legend">
+          <span class="corr-legend-label">-1 (tradeoff)</span>
+          <div class="corr-legend-bar"></div>
+          <span class="corr-legend-label">+1 (moves together)</span>
+        </div>
+      </div>
 
-        <!-- Right: Explanation panel -->
-        <div class="corr-explain-panel">
-          {{#if corrHoverPair}}
-          <div class="corr-explain-card">
-            <div class="corr-explain-header">
-              <div class="corr-explain-fields">
-                <span class="corr-explain-field">{{corrHoverPair.label_a}}</span>
-                <span class="corr-explain-vs">&amp;</span>
-                <span class="corr-explain-field">{{corrHoverPair.label_b}}</span>
-              </div>
-              <span class="corr-explain-badge corr-explain-badge-{{corrHoverPair.direction}}">
-                {{corrHoverPair.strength}} · r = {{corrHoverPair.r.toFixed(2)}}
-              </span>
+      <!-- Right: Explanation panel -->
+      <div class="corr-explain-panel">
+        {{#if corrHoverPair}}
+        <div class="corr-explain-card">
+          <div class="corr-explain-header">
+            <div class="corr-explain-fields">
+              <span class="corr-explain-field">{{corrHoverPair.label_a}}</span>
+              <span class="corr-explain-vs">&amp;</span>
+              <span class="corr-explain-field">{{corrHoverPair.label_b}}</span>
             </div>
-
-            <div class="corr-explain-narrative">
-              {{corrHoverPair.narrative}}
-            </div>
-
-            {{#if corrHoverPair.design_implication}}
-            <div class="corr-explain-implication">
-              <strong>Design takeaway:</strong> {{corrHoverPair.design_implication}}
-            </div>
-            {{/if}}
-
-            {{#if corrHoverPair.semantic_overlap}}
-            <div class="corr-explain-note">
-              These dimensions share conceptual overlap in their definitions — some of this correlation is expected.
-            </div>
-            {{/if}}
-
-            <div class="corr-explain-defs">
-              <div class="corr-explain-def">
-                <div class="corr-explain-def-label">{{corrHoverPair.label_a}}</div>
-                <div class="corr-explain-def-text">{{corrHoverPair.description_a}}</div>
-              </div>
-              <div class="corr-explain-def">
-                <div class="corr-explain-def-label">{{corrHoverPair.label_b}}</div>
-                <div class="corr-explain-def-text">{{corrHoverPair.description_b}}</div>
-              </div>
-            </div>
+            <span class="corr-explain-badge corr-explain-badge-{{corrHoverPair.direction}}">
+              {{corrHoverPair.strength}} · r = {{corrHoverPair.r.toFixed(2)}}
+            </span>
           </div>
-          {{else}}
-          <div class="corr-explain-empty">
-            <div class="corr-explain-empty-icon">↖</div>
-            <div class="corr-explain-empty-text">Hover any cell to see the relationship explained</div>
+
+          <div class="corr-explain-narrative">
+            {{corrHoverPair.narrative}}
+          </div>
+
+          {{#if corrHoverPair.design_implication}}
+          <div class="corr-explain-implication">
+            <strong>Design takeaway:</strong> {{corrHoverPair.design_implication}}
           </div>
           {{/if}}
+
+          {{#if corrHoverPair.semantic_overlap}}
+          <div class="corr-explain-note">
+            These dimensions share conceptual overlap in their definitions — some of this correlation is expected.
+          </div>
+          {{/if}}
+
+          <div class="corr-explain-defs">
+            <div class="corr-explain-def">
+              <div class="corr-explain-def-label">{{corrHoverPair.label_a}}</div>
+              <div class="corr-explain-def-text">{{corrHoverPair.description_a}}</div>
+            </div>
+            <div class="corr-explain-def">
+              <div class="corr-explain-def-label">{{corrHoverPair.label_b}}</div>
+              <div class="corr-explain-def-text">{{corrHoverPair.description_b}}</div>
+            </div>
+          </div>
         </div>
+        {{else}}
+        <div class="corr-explain-empty">
+          <div class="corr-explain-empty-icon">&#8598;</div>
+          <div class="corr-explain-empty-text">Hover any cell to see the relationship explained</div>
+        </div>
+        {{/if}}
       </div>
     </div>
 
     <!-- Section 2: Variable Clusters -->
-    <div class="corr-section">
-      <div class="corr-section-title">Design Packages</div>
-      <p class="corr-section-desc">Dimensions that move in lockstep — adjust one and the others follow.</p>
-      <div class="corr-clusters">
-        {{#each correlationsData.clusters}}
-        <div class="corr-cluster-card">
-          <div class="corr-cluster-label">{{this.label}}</div>
-          <div class="corr-cluster-fields">
-            {{#each this.fields}}
-            <span class="corr-chip">{{formatFieldName(this)}}</span>
-            {{/each}}
-          </div>
+    <h3 class="corr-label">Design Packages</h3>
+    <p class="corr-narrative">Dimensions that move in lockstep — adjust one and the others follow. These clusters emerged from the data, not from any predefined grouping.</p>
+    <div class="corr-clusters">
+      {{#each correlationsData.clusters}}
+      <div class="corr-cluster-card">
+        <div class="corr-cluster-label">{{this.label}}</div>
+        <div class="corr-cluster-fields">
+          {{#each this.fields}}
+          <span class="corr-chip">{{formatFieldName(this)}}</span>
+          {{/each}}
         </div>
-        {{/each}}
       </div>
+      {{/each}}
     </div>
 
     <!-- Section 3: Driver Analysis -->
-    <div class="corr-section">
-      <div class="corr-section-title">What Drives Key Outcomes?</div>
-      <p class="corr-section-desc">Dimensions most associated with each target outcome. Bars show correlation strength — longer = stronger relationship.</p>
-      <div class="corr-driver-tabs">
-        <button class="corr-driver-tab {{#if correlationsDriverTarget === 'overall_quality'}}active{{/if}}" on-click="@this.switchDriverTarget('overall_quality')">Overall Quality</button>
-        <button class="corr-driver-tab {{#if correlationsDriverTarget === 'calm_confident'}}active{{/if}}" on-click="@this.switchDriverTarget('calm_confident')">Calm & Confident</button>
-        <button class="corr-driver-tab {{#if correlationsDriverTarget === 'bold_forward'}}active{{/if}}" on-click="@this.switchDriverTarget('bold_forward')">Bold & Forward</button>
-      </div>
-      <div class="corr-driver-wrap">
-        <canvas id="corr-driver-chart"></canvas>
-      </div>
+    <h3 class="corr-label">What Drives Key Outcomes?</h3>
+    <p class="corr-narrative">Dimensions most associated with each target outcome. Longer bars mean a stronger relationship — blue moves together, red pulls apart.</p>
+    <div class="corr-driver-tabs">
+      <button class="preset-pill {{#if correlationsDriverTarget === 'overall_quality'}}active{{/if}}" on-click="@this.switchDriverTarget('overall_quality')">Overall Quality</button>
+      <button class="preset-pill {{#if correlationsDriverTarget === 'calm_confident'}}active{{/if}}" on-click="@this.switchDriverTarget('calm_confident')">Calm & Confident</button>
+      <button class="preset-pill {{#if correlationsDriverTarget === 'bold_forward'}}active{{/if}}" on-click="@this.switchDriverTarget('bold_forward')">Bold & Forward</button>
+    </div>
+    <div class="corr-driver-wrap">
+      <canvas id="corr-driver-chart"></canvas>
     </div>
 
     <!-- Section 4: Design Tradeoffs -->
-    <div class="corr-section">
-      <div class="corr-section-title">Design Tensions</div>
-      <p class="corr-section-desc">The strongest tradeoffs — pushing one dimension comes at the cost of another. Each dot represents an industry's average position.</p>
-      <div class="corr-tradeoff-grid">
-        {{#each correlationsData.tradeoffs}}
-        <div class="corr-tradeoff-card">
-          <div class="corr-tradeoff-header">
-            <span class="corr-tradeoff-title">{{formatFieldName(this.pair[0])}} vs {{formatFieldName(this.pair[1])}}</span>
-            <span class="corr-tradeoff-badge">r = {{this.r.toFixed(2)}}</span>
-          </div>
-          <div class="corr-tradeoff-chart">
-            <canvas id="corr-tradeoff-{{@index}}"></canvas>
-          </div>
-          {{#if this.insight}}
-          <p class="corr-tradeoff-insight">{{this.insight}}</p>
-          {{/if}}
+    <h3 class="corr-label">Design Tensions</h3>
+    <p class="corr-narrative">The strongest tradeoffs — pushing one dimension comes at the cost of another. Each dot represents an industry's average position.</p>
+    <div class="corr-tradeoff-grid">
+      {{#each correlationsData.tradeoffs}}
+      <div class="corr-tradeoff-card">
+        <div class="corr-tradeoff-header">
+          <span class="corr-tradeoff-title">{{formatFieldName(this.pair[0])}} vs {{formatFieldName(this.pair[1])}}</span>
+          <span class="corr-tradeoff-badge">r = {{this.r.toFixed(2)}}</span>
         </div>
-        {{/each}}
+        <div class="corr-tradeoff-chart">
+          <canvas id="corr-tradeoff-{{@index}}"></canvas>
+        </div>
+        {{#if this.insight}}
+        <p class="corr-tradeoff-insight">{{this.insight}}</p>
+        {{/if}}
       </div>
+      {{/each}}
     </div>
 
     <!-- Section 5: Design Levers -->
-    <div class="corr-section">
-      <div class="corr-section-title">Cause & Effect</div>
-      <p class="corr-section-desc">Plain-language relationships — what happens when you push each design lever.</p>
-      <div class="corr-lever-grid">
-        {{#each correlationsData.levers}}
-        <div class="corr-lever-card">
-          <div class="corr-lever-trigger">{{formatFieldName(this.trigger)}}</div>
-          <p class="corr-lever-summary">{{this.summary}}</p>
-          <div class="corr-lever-effects">
-            {{#each this.effect_up}}
-            <span class="corr-effect-up">&#8593; {{formatFieldName(this)}}</span>
-            {{/each}}
-            {{#each this.effect_down}}
-            <span class="corr-effect-down">&#8595; {{formatFieldName(this)}}</span>
-            {{/each}}
-          </div>
+    <h3 class="corr-label">Cause & Effect</h3>
+    <p class="corr-narrative">Plain-language relationships — what happens when you push each design lever.</p>
+    <div class="corr-lever-grid">
+      {{#each correlationsData.levers}}
+      <div class="corr-lever-card">
+        <div class="corr-lever-trigger">{{formatFieldName(this.trigger)}}</div>
+        <p class="corr-lever-summary">{{this.summary}}</p>
+        <div class="corr-lever-effects">
+          {{#each this.effect_up}}
+          <span class="corr-effect-up">&#8593; {{formatFieldName(this)}}</span>
+          {{/each}}
+          {{#each this.effect_down}}
+          <span class="corr-effect-down">&#8595; {{formatFieldName(this)}}</span>
+          {{/each}}
         </div>
-        {{/each}}
       </div>
+      {{/each}}
     </div>
 
+    </div>
     {{/if}}
   </div>
 </script>
