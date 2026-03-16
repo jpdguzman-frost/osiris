@@ -2803,14 +2803,15 @@ img {
 /* Heatmap 2-column layout */
 .corr-heatmap-layout {
   display: grid;
-  grid-template-columns: 1fr 380px;
+  grid-template-columns: auto 380px;
   gap: var(--space-8);
   align-items: start;
   margin-bottom: var(--space-10);
 }
 
 .corr-heatmap-col {
-  /* Contains canvas + legend */
+  max-height: 80vh;
+  overflow: auto;
 }
 
 /* Explanation panel */
