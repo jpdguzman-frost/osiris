@@ -1468,8 +1468,6 @@
     <div class="corr-editorial">
 
     <!-- Section 1: Correlation Heatmap -->
-    <h3 class="corr-label">Relationship Matrix</h3>
-
     <div class="corr-heatmap-layout">
       <!-- Left: Heatmap -->
       <div class="corr-heatmap-col">
@@ -1527,7 +1525,6 @@
         </div>
         {{else}}
         <div class="corr-explain-empty">
-          <div class="corr-explain-empty-icon">&#8598;</div>
           <div class="corr-explain-empty-text">Hover any cell to see the relationship explained</div>
         </div>
         {{/if}}
@@ -1582,25 +1579,50 @@
       {{/each}}
     </div>
 
-    <!-- Section 5: Design Levers -->
-    <h3 class="corr-label">Cause & Effect</h3>
-    <p class="corr-narrative">Plain-language relationships — what happens when you push each design lever.</p>
-    <div class="corr-lever-grid">
-      {{#each correlationsData.levers}}
-      <div class="corr-lever-card">
-        <div class="corr-lever-trigger">{{formatFieldName(this.trigger)}}</div>
-        <p class="corr-lever-summary">{{this.summary}}</p>
-        <div class="corr-lever-effects">
-          {{#each this.effect_up}}
-          <span class="corr-effect-up">&#8593; {{formatFieldName(this)}}</span>
-          {{/each}}
-          {{#each this.effect_down}}
-          <span class="corr-effect-down">&#8595; {{formatFieldName(this)}}</span>
-          {{/each}}
+    <!-- Section 5: Design Mixer -->
+    <h3 class="corr-label">Design Mixer</h3>
+    <p class="corr-narrative">Drag any slider to explore how dimensions respond to each other. The screens below update to show real examples closest to your configuration.</p>
+
+    <div class="mixer-controls">
+      <button class="btn btn-ghost btn-sm" on-click="@this.resetMixer()">Reset to Averages</button>
+    </div>
+
+    <div class="mixer-sliders">
+      {{#each mixerFields:i}}
+      <div class="mixer-slider-col {{this.isDriver ? 'mixer-driver' : ''}}">
+        <div class="mixer-value">{{this.value.toFixed(1)}}</div>
+        <input type="range" class="mixer-range"
+          min="{{this.min}}" max="{{this.max}}" step="0.1"
+          value="{{this.value}}"
+          on-input="@this.onMixerDrag(this.field, event.node.value)">
+        <div class="mixer-field-label">{{this.label}}</div>
+      </div>
+      {{/each}}
+    </div>
+
+    {{#if mixerScreensLoading}}
+    <div class="mixer-screens-loading">
+      <div class="loading"><span class="loading-dot"></span><span class="loading-dot"></span><span class="loading-dot"></span></div>
+    </div>
+    {{elseif mixerScreens.length}}
+    <h3 class="corr-label" style="margin-top: var(--space-8);">Closest Matches</h3>
+    <div class="mixer-screens">
+      {{#each mixerScreens}}
+      <div class="screen-card" on-click="@this.navigate('/screen/' + this.screen_id)">
+        <div class="screen-card-image">
+          <img src="{{this.image_url}}" loading="lazy">
+        </div>
+        <div class="screen-card-body">
+          <div class="screen-card-id">{{this.screen_id}}</div>
+          {{#if this.brand}}<div class="screen-card-brand">{{brandDisplayName(this.brand)}}</div>{{/if}}
+          <div class="screen-card-meta">
+            <span class="pill pill-industry">{{this.industry}}</span>
+          </div>
         </div>
       </div>
       {{/each}}
     </div>
+    {{/if}}
 
     </div>
     {{/if}}

@@ -658,12 +658,25 @@ router.get('/api/correlations', async (req, res) => {
       }
     }
 
+    // Global averages and standard deviations for the mixer
+    const globalAverages = {};
+    const globalStddevs = {};
+    for (const f of FIELD_ORDER) {
+      const vals = vectors[f];
+      const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+      globalAverages[f] = +mean.toFixed(2);
+      const variance = vals.reduce((a, v) => a + (v - mean) ** 2, 0) / vals.length;
+      globalStddevs[f] = +Math.sqrt(variance).toFixed(3);
+    }
+
     const result = {
       fields: FIELD_ORDER,
       field_labels: FIELD_LABELS,
       method: 'spearman',
       count,
       matrix,
+      global_averages: globalAverages,
+      global_stddevs: globalStddevs,
       clusters,
       edges,
       drivers,
@@ -674,6 +687,54 @@ router.get('/api/correlations', async (req, res) => {
 
     correlationCache = { data: result, ts: now, key: cacheKey };
     res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Correlation Match (find screens closest to target scores) ─────────
+
+router.post('/api/correlations/match', async (req, res) => {
+  try {
+    const { targets, limit = 12, industry } = req.body || {};
+    if (!targets || typeof targets !== 'object') {
+      return res.status(400).json({ error: 'targets object required' });
+    }
+
+    const filter = {};
+    if (industry) filter.industry = parseMultiFilter(industry);
+
+    const projection = { screen_id: 1, industry: 1, brand: 1, file_path: 1 };
+    for (const f of FIELD_ORDER) projection[`analysis.scores.${f}`] = 1;
+    const screens = await store.db.collection('screens').find(filter).project(projection).toArray();
+
+    const scored = [];
+    for (const s of screens) {
+      const sc = s.analysis?.scores;
+      if (!sc) continue;
+      let dist = 0;
+      let valid = true;
+      for (const f of FIELD_ORDER) {
+        if (typeof sc[f] !== 'number') { valid = false; break; }
+        if (targets[f] !== undefined) {
+          const range = SCORE_FIELDS[f][1] - SCORE_FIELDS[f][0];
+          const d = (sc[f] - targets[f]) / range;
+          dist += d * d;
+        }
+      }
+      if (!valid) continue;
+      scored.push({
+        screen_id: s.screen_id,
+        industry: s.industry,
+        brand: s.brand || '',
+        file_path: s.file_path,
+        image_url: screenUrl(s.industry, s.file_path),
+        distance: +Math.sqrt(dist).toFixed(4),
+      });
+    }
+
+    scored.sort((a, b) => a.distance - b.distance);
+    res.json({ screens: scored.slice(0, Math.min(limit, 24)) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

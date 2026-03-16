@@ -86,6 +86,11 @@ const api = {
   scatter:      (p) => api.get('/api/scatter?' + new URLSearchParams(p)),
   benchmark:    (p) => api.get('/api/benchmark?' + new URLSearchParams(p)),
   correlations: (p) => api.get('/api/correlations?' + new URLSearchParams(p || {})),
+  correlationsMatch: (body) => fetch(BASE + '/api/correlations/match', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then(r => r.json()),
   brands:       (p) => api.get('/api/brands?' + new URLSearchParams(p || {})),
   buckets:      () => api.get('/api/buckets'),
   bucket:       (id, p) => api.get('/api/buckets/' + encodeURIComponent(id) + '?' + new URLSearchParams(p)),
@@ -160,6 +165,10 @@ const SCORE_LABELS = {
   whitespace_ratio: 'Whitespace Ratio',
   brand_confidence: 'Brand Confidence',
 };
+
+var MIXER_RANGES = {};
+['overall_quality','calm_confident','bold_forward','color_restraint','hierarchy_clarity','glanceability','density','whitespace_ratio','brand_confidence'].forEach(function(f) { MIXER_RANGES[f] = [1, 10]; });
+['calm_energetic','confident_tentative','forward_conservative','premium_accessible','warm_clinical'].forEach(function(f) { MIXER_RANGES[f] = [-5, 5]; });
 
 const CORE_SCORE_FIELDS = [
   'overall_quality', 'calm_confident', 'bold_forward',
@@ -451,6 +460,11 @@ const app = new Ractive({
       correlationsError: false,
       correlationsDriverTarget: 'overall_quality',
       correlationsIndustry: '',
+      // Mixer
+      mixerFields: [],
+      mixerScreens: [],
+      mixerScreensLoading: false,
+      mixerDriverField: null,
       corrHoverPair: null,
 
       // Buckets
@@ -2037,7 +2051,10 @@ const app = new Ractive({
       const data = await api.correlations(params);
       this.set({ correlationsData: data, correlationsLoading: false });
       const self = this;
-      setTimeout(() => waitForElements(['corr-heatmap'], () => self._renderCorrelations(data)), 0);
+      setTimeout(() => waitForElements(['corr-heatmap'], () => {
+        self._renderCorrelations(data);
+        self._initMixer(data);
+      }), 0);
     } catch (err) {
       console.error('Correlations load error:', err);
       this.set({ correlationsLoading: false, correlationsError: true });
@@ -2057,7 +2074,7 @@ const app = new Ractive({
     const n = fields.length;
 
     // Size to fit within 80vh so the explanation panel stays visible
-    var maxH = Math.floor(window.innerHeight * 0.8);
+    var maxH = Math.floor(window.innerHeight * 0.75);
     var leftLabelW = 160;
     var topLabelH = 150; // room for 90° rotated labels
     var cellSize = Math.max(28, Math.floor((maxH - topLabelH) / n));
@@ -2083,46 +2100,80 @@ const app = new Ractive({
       }
     }
 
-    // Draw cells
-    for (let i = 0; i < n; i++) {
+    // Reusable draw function — hoverRow/hoverCol highlight the active cell + its mirror
+    function drawMatrix(hoverRow, hoverCol) {
+      ctx.clearRect(0, 0, totalW, totalH);
+      var hasHover = hoverRow >= 0 && hoverCol >= 0;
+
+      // Draw cells
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          const r = data.matrix[i][j];
+          const x = leftLabelW + j * cellSize;
+          const y = topLabelH + i * cellSize;
+
+          // Is this the hovered cell or its mirror?
+          var isActive = hasHover && ((i === hoverRow && j === hoverCol) || (i === hoverCol && j === hoverRow));
+
+          if (isActive) {
+            // Keep correlation color, just make it stand out
+            ctx.fillStyle = corrColor(r);
+            ctx.fillRect(x, y, cellSize - 1, cellSize - 1);
+            ctx.fillStyle = Math.abs(r) > 0.5 ? '#fff' : '#1A1A1A';
+            ctx.font = '700 11px Google Sans, sans-serif';
+          } else if (hasHover) {
+            // Fade all other cells to grayscale
+            var gray = Math.round(220 + (255 - 220) * (1 - Math.abs(r)));
+            ctx.fillStyle = 'rgb(' + gray + ',' + gray + ',' + gray + ')';
+            ctx.fillRect(x, y, cellSize - 1, cellSize - 1);
+            ctx.fillStyle = '#bbb';
+            ctx.font = '500 11px Google Sans, sans-serif';
+          } else {
+            // Normal — no hover
+            ctx.fillStyle = corrColor(r);
+            ctx.fillRect(x, y, cellSize - 1, cellSize - 1);
+            ctx.fillStyle = Math.abs(r) > 0.5 ? '#fff' : '#333';
+            ctx.font = '500 11px Google Sans, sans-serif';
+          }
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(r.toFixed(2), x + cellSize / 2, y + cellSize / 2);
+        }
+      }
+
+      // Draw labels on top — 90° vertical
       for (let j = 0; j < n; j++) {
-        const r = data.matrix[i][j];
-        const x = leftLabelW + j * cellSize;
-        const y = topLabelH + i * cellSize;
-        ctx.fillStyle = corrColor(r);
-        ctx.fillRect(x, y, cellSize - 1, cellSize - 1);
-        // Show r value in cell
-        ctx.fillStyle = Math.abs(r) > 0.5 ? '#fff' : '#333';
-        ctx.font = '500 11px Google Sans, sans-serif';
-        ctx.textAlign = 'center';
+        var isHighlighted = hasHover && (j === hoverCol || j === hoverRow);
+        var isFaded = hasHover && !isHighlighted;
+        ctx.fillStyle = isHighlighted ? '#0F1B3D' : (isFaded ? '#ccc' : '#1A1A1A');
+        ctx.font = (isHighlighted ? '700' : '500') + ' 12px Google Sans, sans-serif';
+        const x = leftLabelW + j * cellSize + cellSize / 2;
+        const y = topLabelH - 10;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(-Math.PI / 2);
+        ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
-        ctx.fillText(r.toFixed(2), x + cellSize / 2, y + cellSize / 2);
+        ctx.fillText(formatFieldName(fields[j]), 0, 0);
+        ctx.restore();
+      }
+
+      // Draw labels on left
+      for (let i = 0; i < n; i++) {
+        var isHighlighted = hasHover && (i === hoverRow || i === hoverCol);
+        var isFaded = hasHover && !isHighlighted;
+        ctx.fillStyle = isHighlighted ? '#0F1B3D' : (isFaded ? '#ccc' : '#1A1A1A');
+        ctx.font = (isHighlighted ? '700' : '500') + ' 12px Google Sans, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        const x = leftLabelW - 10;
+        const y = topLabelH + i * cellSize + cellSize / 2;
+        ctx.fillText(formatFieldName(fields[i]), x, y);
       }
     }
 
-    // Draw labels on top — 90° vertical
-    ctx.fillStyle = '#1A1A1A';
-    ctx.font = '500 12px Google Sans, sans-serif';
-    for (let j = 0; j < n; j++) {
-      const x = leftLabelW + j * cellSize + cellSize / 2;
-      const y = topLabelH - 10;
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(-Math.PI / 2);
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(formatFieldName(fields[j]), 0, 0);
-      ctx.restore();
-    }
-
-    // Draw labels on left
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
-    for (let i = 0; i < n; i++) {
-      const x = leftLabelW - 10;
-      const y = topLabelH + i * cellSize + cellSize / 2;
-      ctx.fillText(formatFieldName(fields[i]), x, y);
-    }
+    // Initial draw with no highlight
+    drawMatrix(-1, -1);
 
     // Store dimensions for hit testing
     var labelMargin = leftLabelW;
@@ -2146,8 +2197,9 @@ const app = new Ractive({
     };
     canvas.addEventListener('click', canvas._corrClickHandler);
 
-    // Hover cursor + explanation panel
+    // Hover cursor + explanation panel + highlight
     var lastHoverKey = null;
+    var lastHoverRow = -1, lastHoverCol = -1;
     canvas._corrMoveHandler = function (e) {
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
@@ -2157,17 +2209,28 @@ const app = new Ractive({
       const valid = col >= 0 && col < n && row >= 0 && row < n && col !== row;
       canvas.style.cursor = valid ? 'pointer' : 'default';
 
-      if (valid && data.pair_explanations) {
+      // Redraw with highlight when hovered cell changes
+      if (valid) {
+        if (row !== lastHoverRow || col !== lastHoverCol) {
+          lastHoverRow = row; lastHoverCol = col;
+          drawMatrix(row, col);
+        }
         var f1 = fields[col], f2 = fields[row];
         var key = f1 < f2 ? f1 + '|' + f2 : f2 + '|' + f1;
         if (key !== lastHoverKey) {
           lastHoverKey = key;
-          var explanation = data.pair_explanations[key];
+          var explanation = data.pair_explanations ? data.pair_explanations[key] : null;
           app.set('corrHoverPair', explanation || null);
         }
-      } else if (lastHoverKey !== null) {
-        lastHoverKey = null;
-        app.set('corrHoverPair', null);
+      } else {
+        if (lastHoverRow !== -1 || lastHoverCol !== -1) {
+          lastHoverRow = -1; lastHoverCol = -1;
+          drawMatrix(-1, -1);
+        }
+        if (lastHoverKey !== null) {
+          lastHoverKey = null;
+          app.set('corrHoverPair', null);
+        }
       }
     };
     canvas.addEventListener('mousemove', canvas._corrMoveHandler);
@@ -2276,6 +2339,91 @@ const app = new Ractive({
     var data = this.get('correlationsData');
     if (data) this._renderDriverChart(data);
   },
+
+  _initMixer: function (data) {
+    var fields = data.fields.map(function (f) {
+      var range = MIXER_RANGES[f] || [1, 10];
+      return {
+        field: f,
+        label: data.field_labels[f],
+        value: data.global_averages[f],
+        defaultValue: data.global_averages[f],
+        min: range[0],
+        max: range[1],
+        isDriver: false,
+      };
+    });
+    this.set('mixerFields', fields);
+    this._loadMixerScreens();
+  },
+
+  onMixerDrag: function (driverField, rawValue) {
+    var value = parseFloat(rawValue);
+    if (isNaN(value)) return;
+    var data = this.get('correlationsData');
+    if (!data) return;
+    var driverIdx = data.fields.indexOf(driverField);
+    var avgDriver = data.global_averages[driverField];
+    var delta = value - avgDriver;
+    var fields = this.get('mixerFields');
+
+    for (var i = 0; i < fields.length; i++) {
+      var f = fields[i];
+      if (f.field === driverField) {
+        this.set('mixerFields.' + i + '.value', value);
+        this.set('mixerFields.' + i + '.isDriver', true);
+      } else {
+        var targetIdx = data.fields.indexOf(f.field);
+        var r = data.matrix[driverIdx][targetIdx];
+        var predicted = data.global_averages[f.field] + r * delta;
+        predicted = Math.max(f.min, Math.min(f.max, +predicted.toFixed(1)));
+        this.set('mixerFields.' + i + '.value', predicted);
+        this.set('mixerFields.' + i + '.isDriver', false);
+      }
+    }
+    this.set('mixerDriverField', driverField);
+    this._debouncedLoadMixerScreens();
+  },
+
+  resetMixer: function () {
+    var data = this.get('correlationsData');
+    if (!data) return;
+    var fields = this.get('mixerFields');
+    for (var i = 0; i < fields.length; i++) {
+      this.set('mixerFields.' + i + '.value', fields[i].defaultValue);
+      this.set('mixerFields.' + i + '.isDriver', false);
+    }
+    this.set('mixerDriverField', null);
+    this._loadMixerScreens();
+  },
+
+  _debouncedLoadMixerScreens: function () {
+    clearTimeout(this._mixerDebounce);
+    var self = this;
+    this._mixerDebounce = setTimeout(function () { self._loadMixerScreens(); }, 300);
+  },
+
+  _loadMixerScreens: async function () {
+    var fields = this.get('mixerFields');
+    if (!fields || !fields.length) return;
+
+    var targets = {};
+    for (var i = 0; i < fields.length; i++) {
+      targets[fields[i].field] = fields[i].value;
+    }
+
+    this.set('mixerScreensLoading', true);
+    try {
+      var industry = this.get('correlationsIndustry');
+      var body = { targets: targets, limit: 12 };
+      if (industry) body.industry = industry;
+      var result = await api.correlationsMatch(body);
+      this.set({ mixerScreens: result.screens || [], mixerScreensLoading: false });
+    } catch (err) {
+      console.error('Mixer screen match error:', err);
+      this.set({ mixerScreens: [], mixerScreensLoading: false });
+    }
+  },
 });
 
 // ─── Route Handling ──────────────────────────────────────────────────────────
@@ -2350,6 +2498,8 @@ function handleRoute() {
       heatmapCanvas.removeEventListener('click', heatmapCanvas._corrClickHandler);
       heatmapCanvas.removeEventListener('mousemove', heatmapCanvas._corrMoveHandler);
     }
+    app.set({ mixerFields: [], mixerScreens: [], mixerDriverField: null });
+    clearTimeout(app._mixerDebounce);
   }
 
   if (route.view === 'correlations') {
