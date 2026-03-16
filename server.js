@@ -331,6 +331,69 @@ function strengthLabel(absR) {
   return 'negligible';
 }
 
+const FIELD_DESCRIPTIONS = {
+  color_restraint: 'How well the design limits its color palette. High-scoring screens use fewer, more intentional colors.',
+  hierarchy_clarity: 'How easy it is to tell what\'s most important on the screen.',
+  glanceability: 'How quickly you can understand the screen\'s purpose at a glance.',
+  density: 'How well the screen balances the amount of content with breathing room.',
+  whitespace_ratio: 'How effectively the design uses empty space to separate and frame content.',
+  brand_confidence: 'How strongly the design communicates a recognizable brand identity.',
+  calm_confident: 'How composed and assured the design feels.',
+  bold_forward: 'How progressive and daring the design is.',
+  overall_quality: 'The overall design quality combining all factors.',
+  calm_energetic: 'Where the design sits between serene and lively. Negative = calm, positive = energetic.',
+  confident_tentative: 'Whether the design feels decisive or uncertain. Negative = bold, positive = cautious.',
+  forward_conservative: 'How modern versus traditional the design is. Negative = cutting-edge, positive = conventional.',
+  premium_accessible: 'Whether the design targets luxury or mass-market. Negative = exclusive, positive = approachable.',
+  warm_clinical: 'The emotional temperature. Negative = friendly and human, positive = precise and institutional.',
+};
+
+function generatePairNarrative(fieldA, fieldB, r, strengthStr, overlap) {
+  const labelA = FIELD_LABELS[fieldA];
+  const labelB = FIELD_LABELS[fieldB];
+  const descA = FIELD_DESCRIPTIONS[fieldA] || labelA;
+  const descB = FIELD_DESCRIPTIONS[fieldB] || labelB;
+  const absR = Math.abs(r);
+  const direction = r > 0 ? 'positive' : 'negative';
+
+  let narrative, implication;
+
+  if (absR < 0.05) {
+    narrative = `${labelA} and ${labelB} are essentially independent dimensions. Changing one has no measurable effect on the other across the screens analyzed.`;
+    implication = `You can adjust ${labelA} freely without worrying about ${labelB}.`;
+  } else if (r > 0.5) {
+    narrative = `${labelA} and ${labelB} are tightly linked — screens that excel at one almost always excel at the other. This suggests they share a common design discipline: the intentionality that drives strong ${labelA.toLowerCase()} also produces strong ${labelB.toLowerCase()}. With a correlation of ${r.toFixed(2)}, this is one of the more reliable patterns in the dataset.`;
+    implication = `Investing in ${labelA.toLowerCase()} will likely raise ${labelB.toLowerCase()} as well — they reinforce each other.`;
+  } else if (r > 0.3) {
+    narrative = `${labelA} and ${labelB} tend to move together, though not always in lockstep. Screens with higher ${labelA.toLowerCase()} frequently show stronger ${labelB.toLowerCase()}, but there is enough variation that you can push one without the other following automatically. The moderate correlation (${r.toFixed(2)}) indicates a real but flexible relationship.`;
+    implication = `Improving ${labelA.toLowerCase()} gives you a tailwind on ${labelB.toLowerCase()}, but do not count on it — address both intentionally.`;
+  } else if (r > 0.15) {
+    narrative = `There is a mild positive association between ${labelA} and ${labelB}. They nudge in the same direction, but the link is weak enough that many screens break the pattern. This is not something to design around.`;
+    implication = `Do not rely on ${labelA.toLowerCase()} to move ${labelB.toLowerCase()} — the connection is too loose to be actionable.`;
+  } else if (r > 0.05) {
+    narrative = `${labelA} and ${labelB} show a faint positive trend that barely registers in practice. Most design decisions affecting one will not meaningfully change the other.`;
+    implication = `Treat these as independent — any apparent connection is too small to guide decisions.`;
+  } else if (r > -0.15) {
+    narrative = `${labelA} and ${labelB} show a faint negative trend that barely registers in practice. The slight tension between them is not strong enough to create real tradeoffs.`;
+    implication = `Treat these as independent — the slight inverse tendency is not meaningful for design decisions.`;
+  } else if (r > -0.3) {
+    narrative = `There is a mild tension between ${labelA} and ${labelB}. Screens that push harder on one tend to score slightly lower on the other, though many designs manage both adequately. The association is real but weak.`;
+    implication = `Be aware of a slight tradeoff, but do not assume you must sacrifice ${labelB.toLowerCase()} to get ${labelA.toLowerCase()}.`;
+  } else if (r > -0.5) {
+    narrative = `${labelA} and ${labelB} pull in opposite directions with meaningful force. Designs that prioritize one tend to give ground on the other, creating a genuine tension that skilled designers must navigate. The correlation of ${r.toFixed(2)} means this tradeoff shows up consistently across industries.`;
+    implication = `Pushing ${labelA.toLowerCase()} higher will likely cost you ${labelB.toLowerCase()} — plan for the tradeoff.`;
+  } else {
+    narrative = `${labelA} and ${labelB} are in strong opposition — this is one of the hardest tradeoffs in the dataset. Screens that maximize one consistently sacrifice the other. With a correlation of ${r.toFixed(2)}, very few designs manage to score well on both simultaneously.`;
+    implication = `You cannot easily have both high ${labelA.toLowerCase()} and high ${labelB.toLowerCase()} — pick your priority.`;
+  }
+
+  if (overlap) {
+    narrative += ' Note: These dimensions share conceptual overlap in their definitions, so some of this correlation is expected rather than a design insight.';
+  }
+
+  return { narrative, design_implication: implication };
+}
+
 function clusterFields(matrix, fields, threshold = 0.55) {
   // Agglomerative clustering using distance = 1 - |r|
   let clusters = fields.map((f, i) => ({ members: [i], label: '' }));
@@ -562,6 +625,39 @@ router.get('/api/correlations', async (req, res) => {
       }
     });
 
+    // Pair explanations — plain-English lookup for every unique pair
+    const pairExplanations = {};
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const f1 = FIELD_ORDER[i], f2 = FIELD_ORDER[j];
+        const r = matrix[i][j];
+        const [sortedA, sortedB] = f1 < f2 ? [f1, f2] : [f2, f1];
+        const key = `${sortedA}|${sortedB}`;
+        const absR = Math.abs(r);
+        const overlap = isSemanticOverlap(f1, f2);
+        const strength = strengthLabel(absR);
+        const direction = r > 0 ? 'positive' : (r < 0 ? 'negative' : 'neutral');
+        const { narrative, design_implication } = absR > 0.05
+          ? generatePairNarrative(sortedA, sortedB, r, strength, overlap)
+          : { narrative: `${FIELD_LABELS[sortedA]} and ${FIELD_LABELS[sortedB]} are independent dimensions. Changing one has no measurable effect on the other.`, design_implication: `These can be adjusted independently — no tradeoff or synergy to consider.` };
+
+        pairExplanations[key] = {
+          field_a: sortedA,
+          field_b: sortedB,
+          label_a: FIELD_LABELS[sortedA],
+          label_b: FIELD_LABELS[sortedB],
+          r: +r.toFixed(4),
+          strength,
+          direction,
+          semantic_overlap: overlap,
+          narrative,
+          design_implication,
+          description_a: FIELD_DESCRIPTIONS[sortedA] || '',
+          description_b: FIELD_DESCRIPTIONS[sortedB] || '',
+        };
+      }
+    }
+
     const result = {
       fields: FIELD_ORDER,
       field_labels: FIELD_LABELS,
@@ -573,6 +669,7 @@ router.get('/api/correlations', async (req, res) => {
       drivers,
       tradeoffs,
       levers,
+      pair_explanations: pairExplanations,
     };
 
     correlationCache = { data: result, ts: now, key: cacheKey };

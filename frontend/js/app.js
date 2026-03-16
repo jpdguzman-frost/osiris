@@ -451,6 +451,7 @@ const app = new Ractive({
       correlationsError: false,
       correlationsDriverTarget: 'overall_quality',
       correlationsIndustry: '',
+      corrHoverPair: null,
 
       // Buckets
       bucketList: [],
@@ -2140,14 +2141,29 @@ const app = new Ractive({
     };
     canvas.addEventListener('click', canvas._corrClickHandler);
 
-    // Hover cursor
+    // Hover cursor + explanation panel
+    var lastHoverKey = null;
     canvas._corrMoveHandler = function (e) {
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
       const col = Math.floor((mx - labelMargin) / cellSize);
       const row = Math.floor((my - labelMargin) / cellSize);
-      canvas.style.cursor = (col >= 0 && col < n && row >= 0 && row < n && col !== row) ? 'pointer' : 'default';
+      const valid = col >= 0 && col < n && row >= 0 && row < n && col !== row;
+      canvas.style.cursor = valid ? 'pointer' : 'default';
+
+      if (valid && data.pair_explanations) {
+        var f1 = fields[col], f2 = fields[row];
+        var key = f1 < f2 ? f1 + '|' + f2 : f2 + '|' + f1;
+        if (key !== lastHoverKey) {
+          lastHoverKey = key;
+          var explanation = data.pair_explanations[key];
+          app.set('corrHoverPair', explanation || null);
+        }
+      } else if (lastHoverKey !== null) {
+        lastHoverKey = null;
+        app.set('corrHoverPair', null);
+      }
     };
     canvas.addEventListener('mousemove', canvas._corrMoveHandler);
   },

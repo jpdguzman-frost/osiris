@@ -1467,16 +1467,72 @@
     {{elseif correlationsData}}
 
     <!-- Section 1: Correlation Heatmap -->
-    <div class="corr-section">
+    <div class="corr-section corr-heatmap-section">
       <div class="corr-section-title">Relationship Matrix</div>
-      <p class="corr-section-desc">How every design dimension relates to every other. Blue = move together, red = pull apart. Click any cell to explore in Scatter view.</p>
-      <div class="corr-heatmap-wrap">
-        <canvas id="corr-heatmap"></canvas>
-      </div>
-      <div class="corr-legend">
-        <span class="corr-legend-label">-1 (tradeoff)</span>
-        <div class="corr-legend-bar"></div>
-        <span class="corr-legend-label">+1 (moves together)</span>
+      <p class="corr-section-desc">Hover any cell to understand the relationship. Click to explore in Scatter view.</p>
+
+      <div class="corr-heatmap-layout">
+        <!-- Left: Heatmap -->
+        <div class="corr-heatmap-col">
+          <div class="corr-heatmap-wrap">
+            <canvas id="corr-heatmap"></canvas>
+          </div>
+          <div class="corr-legend">
+            <span class="corr-legend-label">-1 (tradeoff)</span>
+            <div class="corr-legend-bar"></div>
+            <span class="corr-legend-label">+1 (moves together)</span>
+          </div>
+        </div>
+
+        <!-- Right: Explanation panel -->
+        <div class="corr-explain-panel">
+          {{#if corrHoverPair}}
+          <div class="corr-explain-card">
+            <div class="corr-explain-header">
+              <div class="corr-explain-fields">
+                <span class="corr-explain-field">{{corrHoverPair.label_a}}</span>
+                <span class="corr-explain-vs">&amp;</span>
+                <span class="corr-explain-field">{{corrHoverPair.label_b}}</span>
+              </div>
+              <span class="corr-explain-badge corr-explain-badge-{{corrHoverPair.direction}}">
+                {{corrHoverPair.strength}} · r = {{corrHoverPair.r.toFixed(2)}}
+              </span>
+            </div>
+
+            <div class="corr-explain-narrative">
+              {{corrHoverPair.narrative}}
+            </div>
+
+            {{#if corrHoverPair.design_implication}}
+            <div class="corr-explain-implication">
+              <strong>Design takeaway:</strong> {{corrHoverPair.design_implication}}
+            </div>
+            {{/if}}
+
+            {{#if corrHoverPair.semantic_overlap}}
+            <div class="corr-explain-note">
+              These dimensions share conceptual overlap in their definitions — some of this correlation is expected.
+            </div>
+            {{/if}}
+
+            <div class="corr-explain-defs">
+              <div class="corr-explain-def">
+                <div class="corr-explain-def-label">{{corrHoverPair.label_a}}</div>
+                <div class="corr-explain-def-text">{{corrHoverPair.description_a}}</div>
+              </div>
+              <div class="corr-explain-def">
+                <div class="corr-explain-def-label">{{corrHoverPair.label_b}}</div>
+                <div class="corr-explain-def-text">{{corrHoverPair.description_b}}</div>
+              </div>
+            </div>
+          </div>
+          {{else}}
+          <div class="corr-explain-empty">
+            <div class="corr-explain-empty-icon">↖</div>
+            <div class="corr-explain-empty-text">Hover any cell to see the relationship explained</div>
+          </div>
+          {{/if}}
+        </div>
       </div>
     </div>
 
