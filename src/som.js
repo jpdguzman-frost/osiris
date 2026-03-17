@@ -3,6 +3,9 @@
 // SOM generation happens in Claude Code sessions (vision model analyzes the screenshot).
 // This module provides utilities for validating, cleaning, and scaling the resulting JSON.
 
+import { ROLE_CATEGORIES } from './som-roles.js';
+import { deepClone } from './utils.js';
+
 const TYPE_SCALE = [10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 64];
 const GRID = 4;
 const VALID_NODE_TYPES = new Set(['FRAME', 'TEXT', 'RECTANGLE', 'ELLIPSE', 'LINE']);
@@ -139,6 +142,25 @@ export function validateSOM(som) {
 
   if (som.root) walkNode(som.root, 'root');
 
+  // v2-specific validation
+  if (som.version === 2 && som.root) {
+    function walkV2(node, nodePath) {
+      if (node.role && node.roleCategory && !ROLE_CATEGORIES[node.roleCategory]) {
+        errors.push(`${nodePath}: Invalid roleCategory "${node.roleCategory}"`);
+      }
+      if (node.content && typeof node.content !== 'object') {
+        errors.push(`${nodePath}: content must be an object`);
+      }
+      if (node.style && typeof node.style !== 'object') {
+        errors.push(`${nodePath}: style must be an object`);
+      }
+      if (Array.isArray(node.children)) {
+        node.children.forEach((child, i) => walkV2(child, `${nodePath}.children[${i}]`));
+      }
+    }
+    walkV2(som.root, 'root');
+  }
+
   return { valid: errors.length === 0, errors };
 }
 
@@ -158,7 +180,7 @@ export function prepareSOM(som) {
 // ─── SOM Scaling ─────────────────────────────────────────────────────────────
 
 export function scaleSOM(som, targetWidth, targetHeight) {
-  const scaled = JSON.parse(JSON.stringify(som));
+  const scaled = deepClone(som);
   const scale = targetWidth / scaled.referenceFrame.width;
 
   function scaleNode(node) {

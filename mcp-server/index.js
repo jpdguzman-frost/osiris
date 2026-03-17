@@ -14,17 +14,34 @@ const API_BASE = process.env.OSIRIS_API_BASE || 'https://aux.frostdesigngroup.co
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-async function apiGet(path, params = {}) {
+async function apiFetch(path, options = {}) {
   const url = new URL(`${API_BASE}${path}`);
-  for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v);
+  if (options.params) {
+    for (const [k, v] of Object.entries(options.params)) {
+      if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v);
+    }
   }
-  const res = await fetch(url.toString());
+  const fetchOptions = {};
+  if (options.body) {
+    fetchOptions.method = 'POST';
+    fetchOptions.headers = { 'Content-Type': 'application/json' };
+    fetchOptions.body = JSON.stringify(options.body);
+  }
+  if (options.method) fetchOptions.method = options.method;
+  const res = await fetch(url.toString(), fetchOptions);
   if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Osiris API ${res.status}: ${body || res.statusText}`);
+    const text = await res.text().catch(() => '');
+    throw new Error(`Osiris API ${res.status}: ${text || res.statusText}`);
   }
   return res.json();
+}
+
+function apiGet(path, params = {}) {
+  return apiFetch(path, { params });
+}
+
+function apiPost(path, body) {
+  return apiFetch(path, { body });
 }
 
 function textResult(content) {
@@ -173,17 +190,47 @@ server.tool(
     }).describe('The SOM JSON object with a root node tree'),
   },
   async ({ screen_id, som }) => {
-    const url = new URL(`${API_BASE}/api/screens/${screen_id}/som`);
-    const res = await fetch(url.toString(), {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(som),
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || `Osiris API ${res.status}`);
-    }
-    return textResult(await res.json());
+    const data = await apiFetch(`/api/screens/${screen_id}/som`, { method: 'PUT', body: som });
+    return textResult(data);
+  }
+);
+
+server.tool(
+  'osiris_assign_roles',
+  'Assign semantic roles to all nodes in a screen SOM. Auto-detects roles from node names and structure. Returns a role map with confidence scores and flags unknown nodes for AI review.',
+  {
+    screen_id: z.string().describe('Screen ID with an existing SOM'),
+    method: z.enum(['auto', 'ai_assisted']).default('auto').describe('Assignment method'),
+    overrides: z.record(z.string()).optional().describe('Manual overrides: { "node-name": "category/role" }'),
+  },
+  async ({ screen_id, method, overrides }) => {
+    const data = await apiPost(`/api/screens/${screen_id}/som/roles`, { method, overrides });
+    return textResult(data);
+  }
+);
+
+server.tool(
+  'osiris_merge_som',
+  'Merge two SOMs: takes content from one screen and visual style from another. Both screens must have SOMs. Returns a merged SOM ready for Rex to build, plus a detailed merge report.',
+  {
+    content_som_id: z.string().describe('Screen ID to use as content source'),
+    style_som_id: z.string().describe('Screen ID to use as style source'),
+    mapping: z.union([
+      z.literal('auto'),
+      z.record(z.string()),
+    ]).default('auto').describe('"auto" for automatic role matching, or a { contentNode: styleNode } map'),
+    options: z.object({
+      preserve_content_hierarchy: z.boolean().default(true),
+      allow_overflow: z.boolean().default(true),
+      overflow: z.enum(['repeat_pattern', 'truncate']).default('repeat_pattern'),
+      underflow: z.enum(['hide_extra', 'placeholder']).default('hide_extra'),
+      target_width: z.number().optional(),
+      target_height: z.number().optional(),
+    }).optional().describe('Merge options'),
+  },
+  async ({ content_som_id, style_som_id, mapping, options }) => {
+    const data = await apiPost('/api/som/merge', { content_som_id, style_som_id, mapping, options });
+    return textResult(data);
   }
 );
 

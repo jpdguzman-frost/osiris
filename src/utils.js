@@ -148,6 +148,19 @@ export function mimeFromExt(ext) {
 
 // ─── General Utilities ────────────────────────────────────────────────────────
 
+export function deepClone(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
+
+export function walkTree(node, visitor, parentContext) {
+  visitor(node, parentContext);
+  if (Array.isArray(node.children)) {
+    for (const child of node.children) {
+      walkTree(child, visitor, node);
+    }
+  }
+}
+
 export function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }

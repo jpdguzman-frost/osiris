@@ -160,6 +160,14 @@ export class Store {
     );
   }
 
+  async getScreenSOM(screenId) {
+    await this.connect();
+    return this.db.collection('screens').findOne(
+      { screen_id: screenId },
+      { projection: { som: 1, screen_id: 1 } },
+    );
+  }
+
   // ── Query Functions ─────────────────────────────────────────────────────
 
   async queryTopScreens(scoreField, minScore, limit = 50) {

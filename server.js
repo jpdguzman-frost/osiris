@@ -9,6 +9,8 @@ import { PATHS, CLAUDE_MODEL, SCORE_FIELDS as SCORE_FIELD_LISTS, brandDisplayNam
 import { findSimilar, WEIGHT_PRESETS } from './src/similarity.js';
 import { setupAuth } from './src/auth.js';
 import { validateSOM, prepareSOM, scaleSOM } from './src/som.js';
+import { upgradeToV2, assignRolesTree } from './src/som-roles.js';
+import { mergeSOM } from './src/som-merge.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -198,10 +200,83 @@ router.put('/api/screens/:id/som', async (req, res) => {
       return res.status(400).json({ error: 'Invalid SOM', details: validation.errors });
     }
 
-    const cleaned = prepareSOM(som);
+    // Auto-upgrade v1 → v2 on save
+    const upgraded = (!som.version || som.version < 2) ? upgradeToV2(som) : som;
+    const cleaned = prepareSOM(upgraded);
     await store.updateSOM(req.params.id, cleaned);
 
     res.json({ ok: true, screen_id: req.params.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/api/screens/:id/som/roles', async (req, res) => {
+  try {
+    const screen = await store.getScreen(req.params.id);
+    if (!screen) return res.status(404).json({ error: 'Screen not found' });
+    if (!screen.som) return res.status(400).json({ error: 'No SOM to assign roles to' });
+
+    const v2 = upgradeToV2(screen.som);
+
+    // Apply manual overrides: { "node-name": "category/role" }
+    const overrides = req.body?.overrides;
+    if (overrides && typeof overrides === 'object') {
+      (function applyOverrides(node) {
+        const key = node.name;
+        if (key && overrides[key]) {
+          const parts = overrides[key].split('/');
+          if (parts.length === 2) {
+            node.roleCategory = parts[0];
+            node.role = parts[1];
+          }
+        }
+        if (Array.isArray(node.children)) node.children.forEach(applyOverrides);
+      })(v2.root);
+    }
+
+    const cleaned = prepareSOM(v2);
+    await store.updateSOM(req.params.id, cleaned);
+
+    // Build response using assignRolesTree which computes actual confidence from assignRole
+    const { roleMap, unknowns, confidence } = assignRolesTree(cleaned.root);
+
+    res.json({
+      screen_id: req.params.id,
+      role_map: roleMap,
+      unknown_nodes: unknowns,
+      overall_confidence: confidence,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/api/som/merge', async (req, res) => {
+  try {
+    const { content_som_id, style_som_id, mapping, options } = req.body || {};
+    if (!content_som_id || !style_som_id) {
+      return res.status(400).json({ error: 'content_som_id and style_som_id are required' });
+    }
+
+    const [contentDoc, styleDoc] = await Promise.all([
+      store.getScreenSOM(content_som_id),
+      store.getScreenSOM(style_som_id),
+    ]);
+
+    if (!contentDoc) return res.status(404).json({ error: `Screen not found: ${content_som_id}` });
+    if (!styleDoc) return res.status(404).json({ error: `Screen not found: ${style_som_id}` });
+    if (!contentDoc.som) return res.status(400).json({ error: `No SOM for content screen: ${content_som_id}` });
+    if (!styleDoc.som) return res.status(400).json({ error: `No SOM for style screen: ${style_som_id}` });
+
+    const result = mergeSOM(contentDoc.som, styleDoc.som, mapping || 'auto', options || {});
+
+    // Optional scaling
+    if (options?.target_width && options?.target_height) {
+      result.merged_som = scaleSOM(result.merged_som, options.target_width, options.target_height);
+    }
+
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
