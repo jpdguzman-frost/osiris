@@ -7,6 +7,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { Store } from './src/store.js';
 import { PATHS, CLAUDE_MODEL, SCORE_FIELDS as SCORE_FIELD_LISTS, brandDisplayName } from './src/utils.js';
 import { findSimilar, WEIGHT_PRESETS } from './src/similarity.js';
+import { setupAuth } from './src/auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -42,11 +43,11 @@ await store.connect();
 // ─── Middleware ──────────────────────────────────────────────────────────────
 
 app.use(express.json());
+app.set('trust proxy', 1);
 
-// ─── Static Files ────────────────────────────────────────────────────────────
+// ─── Auth ────────────────────────────────────────────────────────────────────
 
-router.use('/frontend', express.static(path.join(__dirname, 'frontend')));
-router.use('/screens', express.static(PATHS.screens, { maxAge: '1d' }));
+const { requireAuth } = setupAuth(router, BASE_PATH);
 
 // ─── API: Stats ──────────────────────────────────────────────────────────────
 
@@ -658,13 +659,22 @@ router.post('/api/buckets/import-distillation', async (req, res) => {
   }
 });
 
+// ─── Protected Static Files ──────────────────────────────────────────────────
+
+router.use('/frontend', requireAuth, express.static(path.join(__dirname, 'frontend')));
+router.use('/screens', requireAuth, express.static(PATHS.screens, { maxAge: '1d' }));
+
+router.get('/guide.html', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'guide.html'));
+});
+
 // ─── SPA Fallback ────────────────────────────────────────────────────────────
 
-router.get('/', (req, res) => {
+router.get('/', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
 });
 
-router.get('/{*path}', (req, res) => {
+router.get('/{*path}', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
 });
 

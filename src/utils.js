@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import fs from 'fs-extra';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import sharp from 'sharp';
 
 // ─── Logger ───────────────────────────────────────────────────────────────────
@@ -197,7 +198,7 @@ export async function promisePool(items, concurrency, fn) {
 
 // ─── Project Paths ────────────────────────────────────────────────────────────
 
-const ROOT = path.resolve(new URL('..', import.meta.url).pathname);
+const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 export const PATHS = {
   root: ROOT,

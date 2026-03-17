@@ -1,0 +1,2049 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rex & Osiris — Team Guide</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:ital,wght@0,400;0,500;0,700&family=Google+Sans+Mono:wght@400;500;600&family=Google+Sans+Text:ital,wght@0,400;0,500;0,700;1,400&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ========================================
+       CSS CUSTOM PROPERTIES
+       ======================================== */
+    :root {
+      /* Palette — warm parchment meets modern editorial */
+      --bg: #F6F3EE;
+      --bg-alt: #EDEAE4;
+      --surface: #FDFCFA;
+      --surface-raised: #FFFFFF;
+      --border: #DDD8D0;
+      --border-light: #E8E4DD;
+
+      --text: #1C1917;
+      --text-secondary: #78716C;
+      --text-tertiary: #A8A29E;
+
+      --rex: #2654B8;
+      --rex-soft: #E8EEFB;
+      --rex-glow: rgba(38, 84, 184, 0.08);
+
+      --osiris: #7E3FB5;
+      --osiris-soft: #F1E8FB;
+      --osiris-glow: rgba(126, 63, 181, 0.08);
+
+      --combined: #0F766E;
+      --combined-soft: #E6F5F3;
+
+      --tip: #B45309;
+      --tip-soft: #FEF3E2;
+
+      --danger: #B91C1C;
+      --danger-soft: #FEE9E7;
+
+      --info: #1D4ED8;
+      --info-soft: #EFF6FF;
+
+      --code-bg: #F0EDE8;
+      --code-border: #DDD8D0;
+
+      --radius-sm: 6px;
+      --radius: 10px;
+      --radius-lg: 16px;
+
+      --shadow-sm: 0 1px 2px rgba(28,25,23,0.04);
+      --shadow: 0 2px 8px rgba(28,25,23,0.06), 0 1px 2px rgba(28,25,23,0.04);
+      --shadow-lg: 0 8px 32px rgba(28,25,23,0.08), 0 2px 8px rgba(28,25,23,0.04);
+
+      --nav-width: 280px;
+      --header-height: 0px;
+
+      --font: 'Google Sans', 'Google Sans Text', -apple-system, sans-serif;
+      --font-headline: 'Space Grotesk', 'Google Sans', sans-serif;
+      --font-mono: 'Google Sans Mono', 'SF Mono', monospace;
+
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    [data-theme="dark"] {
+      --bg: #151210;
+      --bg-alt: #1C1917;
+      --surface: #1F1C19;
+      --surface-raised: #262320;
+      --border: #3D3733;
+      --border-light: #2E2A26;
+
+      --text: #F5F0EB;
+      --text-secondary: #A8A29E;
+      --text-tertiary: #78716C;
+
+      --rex: #6B9CF7;
+      --rex-soft: rgba(107, 156, 247, 0.1);
+      --rex-glow: rgba(107, 156, 247, 0.06);
+
+      --osiris: #B98AE0;
+      --osiris-soft: rgba(185, 138, 224, 0.1);
+      --osiris-glow: rgba(185, 138, 224, 0.06);
+
+      --combined: #5EEAD4;
+      --combined-soft: rgba(94, 234, 212, 0.08);
+
+      --tip: #F59E0B;
+      --tip-soft: rgba(245, 158, 11, 0.08);
+
+      --danger: #F87171;
+      --danger-soft: rgba(248, 113, 113, 0.08);
+
+      --info: #93C5FD;
+      --info-soft: rgba(147, 197, 253, 0.08);
+
+      --code-bg: #1A1714;
+      --code-border: #2E2A26;
+
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+      --shadow: 0 2px 8px rgba(0,0,0,0.25), 0 1px 2px rgba(0,0,0,0.15);
+      --shadow-lg: 0 8px 32px rgba(0,0,0,0.3), 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    /* ========================================
+       RESET & BASE
+       ======================================== */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html {
+      font-size: clamp(14px, 0.9vw + 10px, 17px);
+      scroll-behavior: smooth;
+      scroll-padding-top: 32px;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 1rem;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+    }
+
+    /* Grain overlay */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.025;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-repeat: repeat;
+      background-size: 256px;
+    }
+
+    [data-theme="dark"] body::after {
+      opacity: 0.04;
+    }
+
+    /* ========================================
+       READING PROGRESS BAR
+       ======================================== */
+    .progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--rex), var(--osiris));
+      z-index: 1000;
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+
+    /* ========================================
+       THEME TOGGLE
+       ======================================== */
+    .theme-toggle {
+      position: fixed;
+      top: 20px;
+      right: 24px;
+      z-index: 500;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      box-shadow: var(--shadow);
+      transition: all 0.3s var(--ease-out);
+    }
+
+    .theme-toggle:hover {
+      transform: scale(1.1);
+      box-shadow: var(--shadow-lg);
+    }
+
+    /* ========================================
+       LAYOUT — SIDEBAR + MAIN
+       ======================================== */
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ========================================
+       SIDEBAR NAVIGATION
+       ======================================== */
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: var(--nav-width);
+      height: 100vh;
+      background: var(--surface);
+      border-right: 1px solid var(--border-light);
+      overflow-y: auto;
+      z-index: 100;
+      padding: 32px 0;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.4s var(--ease-out);
+    }
+
+    .sidebar::-webkit-scrollbar { width: 4px; }
+    .sidebar::-webkit-scrollbar-track { background: transparent; }
+    .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .sidebar-logo {
+      padding: 0 24px 28px;
+      border-bottom: 1px solid var(--border-light);
+      margin-bottom: 20px;
+    }
+
+    .sidebar-logo h1 {
+      font-family: var(--font-headline);
+      font-size: 1.3rem;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      line-height: 1.1;
+    }
+
+    .sidebar-logo h1 .amp {
+      font-style: normal;
+      font-weight: 300;
+      color: var(--text-tertiary);
+      margin: 0 2px;
+    }
+
+    .sidebar-logo span.sub {
+      display: block;
+      font-family: var(--font);
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-top: 6px;
+    }
+
+    .nav-section-label {
+      font-family: var(--font);
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      padding: 16px 24px 8px;
+    }
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 24px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: all 0.2s ease;
+      position: relative;
+      border-left: 2px solid transparent;
+    }
+
+    .nav-link::before {
+      content: '';
+      position: absolute;
+      left: -2px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: transparent;
+      transition: background 0.2s ease;
+    }
+
+    .nav-link:hover {
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    .nav-link.active {
+      color: var(--text);
+      font-weight: 600;
+      background: var(--bg);
+    }
+
+    .nav-link.active::before {
+      background: var(--rex);
+    }
+
+    .nav-link .nav-num {
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      font-weight: 600;
+      color: var(--text-tertiary);
+      min-width: 18px;
+    }
+
+    .nav-link.active .nav-num {
+      color: var(--rex);
+    }
+
+    .nav-badge {
+      margin-left: auto;
+      font-size: 0.55rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+
+    .nav-badge-rex { background: var(--rex-soft); color: var(--rex); }
+    .nav-badge-osiris { background: var(--osiris-soft); color: var(--osiris); }
+    .nav-badge-both { background: var(--combined-soft); color: var(--combined); }
+
+    /* Mobile nav toggle */
+    .nav-toggle {
+      display: none;
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      z-index: 501;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .nav-toggle span {
+      width: 16px;
+      height: 1.5px;
+      background: var(--text);
+      border-radius: 1px;
+      transition: all 0.3s var(--ease-out);
+    }
+
+    .nav-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.3);
+      z-index: 99;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    /* ========================================
+       MAIN CONTENT
+       ======================================== */
+    .main {
+      margin-left: var(--nav-width);
+      flex: 1;
+      min-width: 0;
+    }
+
+    .content {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 48px 40px 120px;
+    }
+
+    /* ========================================
+       HERO
+       ======================================== */
+    .hero {
+      padding: 80px 0 64px;
+      border-bottom: 1px solid var(--border-light);
+      margin-bottom: 72px;
+    }
+
+    .hero-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      margin-bottom: 20px;
+    }
+
+    .hero h1 {
+      font-family: var(--font-headline);
+      font-size: clamp(2.5rem, 6vw, 4rem);
+      font-weight: 700;
+      line-height: 1.05;
+      letter-spacing: -1.5px;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 .amp {
+      font-weight: 400;
+      font-style: normal;
+      color: var(--text-tertiary);
+    }
+
+    .hero-description {
+      font-size: 1.15rem;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      max-width: 540px;
+    }
+
+    .hero-meta {
+      display: flex;
+      gap: 24px;
+      margin-top: 32px;
+      font-size: 0.8rem;
+      color: var(--text-tertiary);
+    }
+
+    .hero-meta span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ========================================
+       TYPOGRAPHY
+       ======================================== */
+    .chapter {
+      padding-top: 24px;
+      margin-bottom: 80px;
+    }
+
+    .chapter-header {
+      margin-bottom: 40px;
+    }
+
+    .chapter-heading {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      margin-bottom: 12px;
+    }
+
+    .chapter-num {
+      font-family: var(--font-headline);
+      font-size: clamp(1.75rem, 4vw, 2.4rem);
+      font-weight: 700;
+      line-height: 1.15;
+      color: var(--text-tertiary);
+      letter-spacing: -1px;
+      user-select: none;
+      flex-shrink: 0;
+    }
+
+    [data-theme="dark"] .chapter-num {
+      color: var(--text-tertiary);
+    }
+
+    .chapter-title {
+      font-family: var(--font-headline);
+      font-size: clamp(1.75rem, 4vw, 2.4rem);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.5px;
+    }
+
+    .chapter-subtitle {
+      font-size: 1.05rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    h3 {
+      font-family: var(--font-headline);
+      font-size: 1.3rem;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      margin: 48px 0 16px;
+      line-height: 1.25;
+    }
+
+    h4 {
+      font-family: var(--font);
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin: 28px 0 10px;
+      line-height: 1.35;
+    }
+
+    p {
+      font-size: 1rem;
+      margin-bottom: 14px;
+      line-height: 1.7;
+    }
+
+    ul, ol {
+      padding-left: 22px;
+      margin-bottom: 16px;
+      font-size: 1rem;
+    }
+
+    li {
+      margin-bottom: 6px;
+      line-height: 1.65;
+    }
+
+    li ul { margin-top: 6px; margin-bottom: 0; }
+
+    strong { font-weight: 600; }
+    em { font-style: normal; }
+
+    a {
+      color: var(--rex);
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.2s ease;
+    }
+
+    a:hover { border-bottom-color: currentColor; }
+
+    code {
+      font-family: var(--font-mono);
+      font-size: 0.88em;
+      background: var(--code-bg);
+      padding: 2px 7px;
+      border-radius: 4px;
+      border: 1px solid var(--code-border);
+    }
+
+    /* ========================================
+       BADGES
+       ======================================== */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 100px;
+      font-family: var(--font);
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .badge-rex { background: var(--rex-soft); color: var(--rex); }
+    .badge-osiris { background: var(--osiris-soft); color: var(--osiris); }
+    .badge-both { background: var(--combined-soft); color: var(--combined); }
+    .badge-tip { background: var(--tip-soft); color: var(--tip); }
+
+    /* ========================================
+       PROMPT BLOCKS
+       ======================================== */
+    .prompt-block {
+      position: relative;
+      background: var(--code-bg);
+      border: 1px solid var(--code-border);
+      border-radius: var(--radius);
+      padding: 18px 22px 18px 22px;
+      margin: 14px 0 18px;
+      font-family: var(--font-mono);
+      font-size: 0.825rem;
+      line-height: 1.75;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    .prompt-block::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: var(--rex);
+    }
+
+    .prompt-block.osiris::before { background: var(--osiris); }
+    .prompt-block.combined::before { background: var(--combined); }
+    .prompt-block.tip::before { background: var(--tip); }
+
+    .prompt-label {
+      display: block;
+      font-family: var(--font);
+      font-size: 0.625rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      margin-bottom: 8px;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.875rem;
+      opacity: 0;
+      transition: all 0.2s ease;
+    }
+
+    .prompt-block:hover .copy-btn {
+      opacity: 1;
+    }
+
+    .copy-btn:hover {
+      background: var(--bg-alt);
+    }
+
+    .copy-btn.copied {
+      background: var(--combined-soft);
+      border-color: var(--combined);
+      opacity: 1;
+    }
+
+    /* ========================================
+       TOOL REFERENCE INLINE
+       ======================================== */
+    .tool-ref {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      background: var(--code-bg);
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--code-border);
+      white-space: nowrap;
+    }
+
+    .arrow {
+      color: var(--text-tertiary);
+      margin: 0 4px;
+    }
+
+    /* ========================================
+       CARDS
+       ======================================== */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      margin-bottom: 16px;
+      transition: box-shadow 0.3s ease;
+    }
+
+    .card:hover {
+      box-shadow: var(--shadow);
+    }
+
+    .card h4 {
+      margin-top: 0;
+      margin-bottom: 12px;
+    }
+
+    .card p:last-child { margin-bottom: 0; }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    /* ========================================
+       TABLES
+       ======================================== */
+    .table-wrap {
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin: 14px 0 22px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+
+    th {
+      text-align: left;
+      padding: 10px 16px;
+      font-family: var(--font);
+      font-weight: 600;
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-tertiary);
+      background: var(--bg-alt);
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    td {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border-light);
+      vertical-align: top;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    td code {
+      font-size: 0.78rem;
+    }
+
+    /* ========================================
+       CALLOUTS
+       ======================================== */
+    .callout {
+      padding: 20px 24px;
+      border-radius: var(--radius);
+      margin: 20px 0;
+      font-size: 0.875rem;
+      line-height: 1.65;
+      border: 1px solid transparent;
+    }
+
+    .callout strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 0.825rem;
+    }
+
+    .callout-tip { background: var(--tip-soft); border-color: rgba(180, 83, 9, 0.15); }
+    .callout-important { background: var(--danger-soft); border-color: rgba(185, 28, 28, 0.15); }
+    .callout-info { background: var(--info-soft); border-color: rgba(29, 78, 216, 0.12); }
+
+    [data-theme="dark"] .callout-tip { border-color: rgba(245,158,11,0.15); }
+    [data-theme="dark"] .callout-important { border-color: rgba(248,113,113,0.15); }
+    [data-theme="dark"] .callout-info { border-color: rgba(147,197,253,0.12); }
+
+    /* ========================================
+       WORKFLOW STEPS
+       ======================================== */
+    .workflow-steps {
+      counter-reset: step;
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .workflow-steps li {
+      counter-increment: step;
+      padding: 14px 18px 14px 56px;
+      position: relative;
+      margin-bottom: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      transition: box-shadow 0.2s ease;
+    }
+
+    .workflow-steps li:hover {
+      box-shadow: var(--shadow-sm);
+    }
+
+    .workflow-steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: 18px;
+      top: 14px;
+      width: 26px;
+      height: 26px;
+      background: var(--text);
+      color: var(--bg);
+      border-radius: 50%;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ========================================
+       COLLAPSIBLE SECTIONS (Tool Reference)
+       ======================================== */
+    .collapsible {
+      margin: 16px 0;
+    }
+
+    .collapsible-trigger {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      background: var(--surface);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-family: var(--font);
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+      transition: all 0.2s ease;
+    }
+
+    .collapsible-trigger:hover {
+      background: var(--bg-alt);
+    }
+
+    .collapsible-trigger .chevron {
+      font-size: 1.1rem;
+      color: var(--text-tertiary);
+      transition: transform 0.3s var(--ease-out);
+    }
+
+    .collapsible.open .collapsible-trigger {
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+      border-bottom-color: transparent;
+    }
+
+    .collapsible.open .collapsible-trigger .chevron {
+      transform: rotate(180deg);
+    }
+
+    .collapsible-content {
+      border: 1px solid var(--border-light);
+      border-top: none;
+      border-radius: 0 0 var(--radius) var(--radius);
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height 0.4s var(--ease-out);
+    }
+
+    .collapsible.open .collapsible-content {
+      max-height: 2000px;
+    }
+
+    /* ========================================
+       SEARCH (Tool Reference)
+       ======================================== */
+    .search-box {
+      position: relative;
+      margin-bottom: 20px;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 12px 18px 12px 42px;
+      font-family: var(--font);
+      font-size: 0.875rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .search-box input::placeholder {
+      color: var(--text-tertiary);
+    }
+
+    .search-box input:focus {
+      border-color: var(--rex);
+      box-shadow: 0 0 0 3px var(--rex-glow);
+    }
+
+    .search-box .search-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1rem;
+      color: var(--text-tertiary);
+    }
+
+    /* ========================================
+       DIVIDER
+       ======================================== */
+    .divider {
+      height: 1px;
+      background: var(--border-light);
+      margin: 48px 0;
+    }
+
+    /* ========================================
+       COMPARISON (weak vs strong)
+       ======================================== */
+    .compare-weak {
+      border-color: rgba(185, 28, 28, 0.2);
+    }
+
+    .compare-strong {
+      border-color: rgba(22, 163, 74, 0.2);
+    }
+
+    /* ========================================
+       PULL QUOTE
+       ======================================== */
+    .pull-quote {
+      font-family: var(--font-headline);
+      font-size: 1.4rem;
+      font-weight: 400;
+      font-style: normal;
+      line-height: 1.4;
+      color: var(--text-secondary);
+      padding: 32px 0;
+      margin: 32px 0;
+      border-top: 2px solid var(--border);
+      border-bottom: 2px solid var(--border);
+    }
+
+    /* ========================================
+       RESPONSIVE
+       ======================================== */
+    @media (max-width: 960px) {
+      .sidebar {
+        transform: translateX(-100%);
+      }
+
+      .sidebar.open {
+        transform: translateX(0);
+        box-shadow: var(--shadow-lg);
+      }
+
+      .nav-toggle {
+        display: flex;
+      }
+
+      .nav-overlay.visible {
+        display: block;
+        opacity: 1;
+      }
+
+      .main {
+        margin-left: 0;
+      }
+
+      .content {
+        padding: 32px 24px 96px;
+      }
+
+      .theme-toggle {
+        right: 20px;
+        top: 20px;
+      }
+
+      .hero {
+        padding: 100px 0 48px;
+      }
+
+      .two-col {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .content {
+        padding: 24px 18px 80px;
+      }
+
+      .hero {
+        padding: 90px 0 40px;
+      }
+
+      .card {
+        padding: 20px;
+      }
+
+      .prompt-block {
+        padding: 14px 16px;
+      }
+
+      .hero-meta {
+        flex-direction: column;
+        gap: 8px;
+      }
+    }
+
+    /* ========================================
+       ANIMATIONS
+       ======================================== */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(16px);
+      transition: opacity 0.5s var(--ease-out), transform 0.5s var(--ease-out);
+    }
+
+    .fade-in.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* stagger children */
+    .stagger > .fade-in:nth-child(1) { transition-delay: 0ms; }
+    .stagger > .fade-in:nth-child(2) { transition-delay: 80ms; }
+    .stagger > .fade-in:nth-child(3) { transition-delay: 160ms; }
+    .stagger > .fade-in:nth-child(4) { transition-delay: 240ms; }
+  </style>
+</head>
+<body>
+
+  <!-- Reading Progress -->
+  <div class="progress-bar" id="progressBar"></div>
+
+  <!-- Theme Toggle -->
+  <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+    <span id="themeIcon">&#9790;</span>
+  </button>
+
+  <!-- Mobile Nav Toggle -->
+  <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+    <span></span><span></span><span></span>
+  </button>
+
+  <!-- Mobile Overlay -->
+  <div class="nav-overlay" id="navOverlay"></div>
+
+  <div class="layout">
+
+    <!-- ============================================================
+         SIDEBAR
+         ============================================================ -->
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-logo">
+        <h1>Rex <span class="amp">&</span> Osiris</h1>
+        <span class="sub">Team Guide</span>
+      </div>
+
+      <div class="nav-section-label">Start Here</div>
+      <a href="#getting-started" class="nav-link"><span class="nav-num">01</span> Getting Started</a>
+      <a href="#the-workflow" class="nav-link"><span class="nav-num"></span> How to Actually Use This</a>
+      <a href="#what-is-what" class="nav-link"><span class="nav-num">02</span> What Is What</a>
+
+      <div class="nav-section-label">Rex</div>
+      <a href="#rex-basics" class="nav-link"><span class="nav-num">03</span> Basics <span class="nav-badge nav-badge-rex">Rex</span></a>
+      <a href="#rex-notes" class="nav-link"><span class="nav-num">04</span> Notes & Memory <span class="nav-badge nav-badge-rex">Rex</span></a>
+      <a href="#rex-components" class="nav-link"><span class="nav-num">05</span> Components & Tokens <span class="nav-badge nav-badge-rex">Rex</span></a>
+      <a href="#rex-advanced" class="nav-link"><span class="nav-num">06</span> Advanced <span class="nav-badge nav-badge-rex">Rex</span></a>
+
+      <div class="nav-section-label">Osiris</div>
+      <a href="#osiris-basics" class="nav-link"><span class="nav-num">07</span> Browsing & Search <span class="nav-badge nav-badge-osiris">Osiris</span></a>
+      <a href="#osiris-mimic" class="nav-link"><span class="nav-num">08</span> Mimic <span class="nav-badge nav-badge-osiris">Osiris</span></a>
+      <a href="#osiris-scoring" class="nav-link"><span class="nav-num">09</span> Scoring <span class="nav-badge nav-badge-osiris">Osiris</span></a>
+
+      <div class="nav-section-label">Together</div>
+      <a href="#combined" class="nav-link"><span class="nav-num">10</span> Combined Workflows <span class="nav-badge nav-badge-both">Both</span></a>
+      <a href="#prompt-patterns" class="nav-link"><span class="nav-num">11</span> Prompt Patterns</a>
+      <a href="#tool-reference" class="nav-link"><span class="nav-num">12</span> Tool Reference</a>
+    </nav>
+
+    <!-- ============================================================
+         MAIN CONTENT
+         ============================================================ -->
+    <main class="main">
+      <div class="content">
+
+        <!-- HERO -->
+        <header class="hero" id="hero">
+          <div class="hero-eyebrow">Frost Design Group &mdash; Internal</div>
+          <h1>Rex <span class="amp">&</span> Osiris</h1>
+          <p class="hero-description">You don't need to read a manual. This guide walks you through the first 5 minutes &mdash; get connected, pick up where you left off, and start working. Explore the rest when you're ready.</p>
+          <div class="hero-meta">
+            <span>&#9672; 62 tools documented</span>
+            <span>&#9672; 12 chapters</span>
+            <span>&#9672; Copy-ready prompts</span>
+          </div>
+        </header>
+
+        <!-- ============================================================
+             CH 01 — GETTING STARTED
+             ============================================================ -->
+        <section class="chapter" id="getting-started">
+          <div class="chapter-header">
+            <div class="chapter-heading"><span class="chapter-num">01</span>
+            <h2 class="chapter-title">Getting Started</h2></div>
+            <p class="chapter-subtitle">Connect, pick up context, start working. Under 5 minutes.</p>
+          </div>
+
+          <p>Every session follows the same three steps. Once you've done it once, it becomes muscle memory.</p>
+
+          <h3>Step 1 &mdash; Connect Rex</h3>
+          <p>Make sure the Rex MCP server is running in Claude Code. If you just opened a fresh session, type <code>/mcp</code> in Claude Code to check. You should see <strong>rex</strong> listed as connected.</p>
+
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Check the status of rex — is it connected? Give me the port so I can connect the Figma plugin.</div>
+
+          <p>Claude calls <span class="tool-ref">get_status</span> and returns the <strong>port</strong> (e.g. <code>7880</code>). Copy this.</p>
+
+          <h3>Step 2 &mdash; Connect the Figma Plugin</h3>
+          <ol class="workflow-steps">
+            <li>Open your Figma file and launch the <strong>Rex</strong> plugin.</li>
+            <li>Paste the <strong>port</strong> from Step 1 (e.g. <code>7880</code>) into the plugin's connection field.</li>
+            <li>Hit connect. You should see "Connected" in the plugin panel.</li>
+          </ol>
+
+          <p>That's it &mdash; Claude can now read and write to your Figma file. You can also start a two-way chat between the plugin and Claude Code.</p>
+
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Start listening to my chat from the Figma plugin.</div>
+          <p>Claude calls <span class="tool-ref">wait_for_chat</span> and will respond to anything you type in the Rex plugin chat panel.</p>
+
+          <h3>Step 3 &mdash; Pick Up Where You Left Off</h3>
+          <p>Before diving into new work, catch up on context. Rex stores design decisions as <strong>notes</strong> attached to the file. This is how you (and Claude) remember what happened last session.</p>
+
+          <div class="prompt-block"><span class="prompt-label">Prompt &mdash; Every session start</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Check the notes for this file — what were we working on? Give me a summary of recent decisions and any conventions I should know about.</div>
+
+          <p>Claude calls <span class="tool-ref">browse_notes</span> and <span class="tool-ref">notes</span> to pull back everything saved. This gives you and Claude shared context instantly.</p>
+
+          <div class="callout callout-tip">
+            <strong>Make this a habit.</strong> Starting every session with "check the notes" means Claude always has context. No more re-explaining what you're building or what decisions were made.
+          </div>
+
+          <div class="divider"></div>
+
+          <h3>Step 4 &mdash; Take Notes As You Go</h3>
+          <p>Notes are how Rex remembers. Anything important &mdash; a decision, a convention, something you rejected &mdash; save it. Future you (and your teammates) will thank you.</p>
+
+          <div class="prompt-block"><span class="prompt-label">Save something</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Remember: we're using 8px grid spacing across all components. Padding is always multiples of 8.</div>
+
+          <div class="prompt-block"><span class="prompt-label">Save a decision</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Take note: we chose the sidebar navigation over bottom tabs. User testing showed people missed nav items with tabs.</div>
+
+          <div class="prompt-block"><span class="prompt-label">Recall everything</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>What do you remember about this file? Show me all the notes.</div>
+
+          <p>That's it. Say "remember", "take note", or "save a note" and Rex stores it. Say "what do you remember" or "check the notes" and it pulls everything back. Simple.</p>
+
+          <div class="divider"></div>
+
+          <h3>Step 5 &mdash; Mimic a Screen from Osiris</h3>
+          <p>Want to generate a design based on a reference from our database? One prompt.</p>
+
+          <div class="prompt-block osiris"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Generate a screen from osiris "apple_22"</div>
+
+          <p>Claude automatically pulls the screen's structure from Osiris and builds it in your Figma file using Rex. No need to manually call SOM or chain tools &mdash; one prompt does the full pipeline.</p>
+
+          <div class="divider"></div>
+
+          <h3>You're Ready</h3>
+          <p>From here you can start working. The rest of this guide covers specific tools and workflows you can explore as needed. But first &mdash; read the next section. It's the most important one.</p>
+
+        </section>
+
+        <!-- ============================================================
+             CH 01.5 — THE REAL WORKFLOW (inserted before What Is What)
+             ============================================================ -->
+        <section class="chapter" id="the-workflow">
+          <div class="chapter-header">
+            <div class="chapter-heading">
+            <h2 class="chapter-title">How to Actually Use This</h2></div>
+            <p class="chapter-subtitle">The most important section in this guide. Read this.</p>
+          </div>
+
+          <div class="pull-quote">Rex and Osiris will not produce a polished design. <em>You</em> will &mdash; by iterating with them.</div>
+
+          <p>These tools generate <strong>studies</strong>, not finished work. The real value comes from the loop between the tool and the designer. Here's the workflow:</p>
+
+          <ol class="workflow-steps">
+            <li><strong>Generate multiple studies.</strong> Ask Rex + Osiris to produce several variations. Don't settle on the first output. Ask for 3&ndash;5 different directions, mix references, combine concepts.</li>
+            <li><strong>Curate.</strong> Look at what was generated. Pick the elements that work &mdash; maybe the layout from one, the typography from another, the color approach from a third.</li>
+            <li><strong>Refine by hand.</strong> This is where design happens. The designer adjusts spacing, tweaks type, fixes alignment, adds the craft that makes it feel real. Rex can help execute, but <em>you</em> direct.</li>
+            <li><strong>Repeat.</strong> Generate more variations on your refined direction. Combine, curate, refine again. Each cycle gets closer.</li>
+            <li><strong>Benchmark &amp; evaluate.</strong> When you're happy, use Osiris to score your design against the database. See where it stands. Close any gaps.</li>
+          </ol>
+
+          <div class="callout callout-important">
+            <strong>The tool is a collaborator, not a replacement.</strong> Rex + Osiris will get you to 70% fast. The last 30% &mdash; the polish, the nuance, the craft &mdash; comes from the designer iterating, refining, and making intentional choices. That's what makes the work good.
+          </div>
+
+          <h3>What this looks like in practice</h3>
+
+          <div class="prompt-block combined"><span class="prompt-label">Round 1 &mdash; Explore</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Generate 3 different dashboard layouts inspired by the top fintech screens in Osiris. Make them distinct — one minimal, one data-dense, one with a strong hero section. Put each on a separate frame.</div>
+
+          <div class="prompt-block combined"><span class="prompt-label">Round 2 &mdash; Combine</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>I like the layout from frame 1 and the card style from frame 3. Combine them into a new version. Keep the spacing from frame 1 but use the typography from frame 3.</div>
+
+          <div class="prompt-block combined"><span class="prompt-label">Round 3 &mdash; After your manual refinements</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>I've refined the design manually. Take a screenshot and evaluate it against the fintech bucket benchmarks. Tell me where I'm strong and where I still need work.</div>
+
+          <p>Each round, the design gets sharper. The tool handles the heavy lifting. You handle the taste.</p>
+
+          <div class="pull-quote">Generate. Curate. Refine. Repeat. That's how good work gets made.</div>
+
+        </section>
+
+        <!-- ============================================================
+             CH 02 — WHAT IS WHAT
+             ============================================================ -->
+        <section class="chapter" id="what-is-what">
+          <div class="chapter-header">
+            <div class="chapter-heading"><span class="chapter-num">02</span>
+            <h2 class="chapter-title">What Is What</h2></div>
+            <p class="chapter-subtitle">Two tools, two purposes, one design workflow.</p>
+          </div>
+
+          <div class="two-col stagger">
+            <div class="card fade-in">
+              <h4><span class="badge badge-rex">Rex</span> &nbsp;Figma Control</h4>
+              <p>Rex connects Claude Code directly to your open Figma file via a plugin. It can <strong>read</strong> your design (nodes, styles, variables, selections), <strong>write</strong> to it (create frames, set text, apply fills, build components), and <strong>remember</strong> design decisions via notes.</p>
+              <p><strong>50+ tools.</strong> Think of it as Claude's hands inside Figma.</p>
+            </div>
+            <div class="card fade-in">
+              <h4><span class="badge badge-osiris">Osiris</span> &nbsp;Design Intelligence</h4>
+              <p>Osiris is a curated database of analyzed UI screens. It provides <strong>scored references</strong>, <strong>benchmarks</strong>, <strong>similarity search</strong>, and a <strong>Mimic</strong> feature that generates Figma-ready designs from any reference screen.</p>
+              <p><strong>12 tools.</strong> Think of it as Claude's design eye and reference library.</p>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <h3>Prerequisites</h3>
+          <p><strong>Rex</strong> needs the Figma plugin running + the <code>rex</code> MCP server connected in Claude Code. <strong>Osiris</strong> just needs the <code>osiris</code> MCP server connected &mdash; no plugin, just internet access. Check both with <code>/mcp</code>.</p>
+        </section>
+
+        <!-- ============================================================
+             CH 03 — REX BASICS
+             ============================================================ -->
+        <section class="chapter" id="rex-basics">
+          <div class="chapter-header">
+            <div class="chapter-heading"><span class="chapter-num">03</span>
+            <h2 class="chapter-title">Rex Basics</h2></div>
+            <p class="chapter-subtitle">Reading &amp; building in Figma &mdash; the operations you'll use daily.</p>
+          </div>
+
+          <h3>Reading Your Design</h3>
+          <p>Before Claude can help with your design, it needs to see it. These are the key read operations.</p>
+
+          <h4>Get what's selected</h4>
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Look at what I have selected in Figma and describe the layout, spacing, and colors.</div>
+          <p>Claude calls <span class="tool-ref">get_selection</span> to inspect your current selection, then describes what it finds.</p>
+
+          <h4>Search for specific nodes</h4>
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Find all frames named "Card" on the current page and list their sizes.</div>
+          <p>Uses <span class="tool-ref">search_nodes</span> with a name filter. You can also filter by type (FRAME, TEXT, INSTANCE, etc.).</p>
+
+          <h4>Take a screenshot</h4>
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Take a screenshot of node 123:456 so you can see what it looks like.</div>
+          <p><span class="tool-ref">screenshot</span> captures a PNG of any node or the full page. Claude can then visually analyze it.</p>
+
+          <h4>Inspect the full page</h4>
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Get me a summary of the current page — what's on it and how it's structured.</div>
+          <p><span class="tool-ref">get_page</span> returns the page tree. Use detail levels: <code>summary</code>, <code>standard</code>, or <code>full</code>.</p>
+
+          <div class="divider"></div>
+
+          <h3>Building &amp; Editing</h3>
+
+          <h4>Create a frame with auto-layout</h4>
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Create a card component: 360px wide, vertical auto-layout, 24px padding, 16px gap. Add a heading "Feature Title" in 20px bold and a paragraph of placeholder body text in 14px regular. White background, 8px corner radius, subtle drop shadow.</div>
+          <p>Claude uses <span class="tool-ref">create_node</span> with nested children, auto-layout config, fills, effects, and text styling &mdash; all in one atomic call.</p>
+
+          <h4>Update existing nodes</h4>
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Change the background of my selected frame to #1E1E1E and make all text inside it white.</div>
+          <p>Uses <span class="tool-ref">get_selection</span> to find the node, then <span class="tool-ref">set_fills</span> on the frame and <span class="tool-ref">batch_update_nodes</span> on the text layers.</p>
+
+          <h4>Set text content and styles</h4>
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Set the text on node 42:100 to "Welcome Back" in Inter Semi Bold 32px, color #111827.</div>
+          <p><span class="tool-ref">set_text</span> handles content, font loading, sizing, and color in one call. It supports mixed-style ranges too.</p>
+
+          <h4>Clone and rearrange</h4>
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Duplicate the card I have selected 3 times and arrange them in a horizontal row with 20px spacing.</div>
+          <p>Uses <span class="tool-ref">clone_node</span> repeatedly, then <span class="tool-ref">reparent_node</span> or <span class="tool-ref">set_auto_layout</span> on a parent frame to arrange them.</p>
+        </section>
+
+        <!-- ============================================================
+             CH 04 — REX NOTES
+             ============================================================ -->
+        <section class="chapter" id="rex-notes">
+          <div class="chapter-header">
+            <div class="chapter-heading"><span class="chapter-num">04</span>
+            <h2 class="chapter-title">Rex Notes</h2></div>
+            <p class="chapter-subtitle">Persistent design knowledge that survives across sessions.</p>
+          </div>
+
+          <p>Rex Notes are cloud-stored design decisions, conventions, and context. They help Claude (and your team) remember <em>why</em> things are the way they are.</p>
+
+          <div class="pull-quote">Notes are your file's collective memory &mdash; decisions, conventions, and the reasoning behind them, shared with everyone in the same Figma file.</div>
+
+          <h3>Saving a Note</h3>
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Save a note: "We always use 8px grid spacing. Padding should be multiples of 8 (8, 16, 24, 32). This applies to all components." Category: convention.</div>
+          <p><span class="tool-ref">note</span> stores this with category metadata. Notes are scoped to the current <strong>file</strong> &mdash; everyone working in the same Figma file sees them.</p>
+
+          <p>Available categories:</p>
+
+          <div class="table-wrap">
+            <table>
+              <tr><th>Category</th><th>Use for</th></tr>
+              <tr><td><code>convention</code></td><td>Reusable rules (spacing, naming, colors)</td></tr>
+              <tr><td><code>decision</code></td><td>Design decisions with rationale</td></tr>
+              <tr><td><code>context</code></td><td>Background info ("this page is for mobile onboarding")</td></tr>
+              <tr><td><code>rejection</code></td><td>What you tried and rejected, and why</td></tr>
+              <tr><td><code>relationship</code></td><td>How things connect ("this card maps to the API /products endpoint")</td></tr>
+              <tr><td><code>preference</code></td><td>Stylistic preferences</td></tr>
+              <tr><td><code>correction</code></td><td>Corrections to previous notes or assumptions</td></tr>
+            </table>
+          </div>
+
+          <h3>Querying Notes</h3>
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>What design conventions have been saved for this file? Check the notes.</div>
+          <p><span class="tool-ref">notes</span> searches by query text. <span class="tool-ref">browse_notes</span> lists by category filter.</p>
+
+          <h3>More Examples</h3>
+
+          <div class="prompt-block"><span class="prompt-label">Prompt &mdash; Decision</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Save a decision note: "We chose Inter over SF Pro because this product targets web + Android, not iOS-only. Approved by design lead on March 10."</div>
+
+          <div class="prompt-block"><span class="prompt-label">Prompt &mdash; Rejection</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Save a rejection note: "We tried a bottom tab bar on the dashboard but rejected it — user testing showed people missed the side nav items. Stick with sidebar navigation."</div>
+
+          <div class="prompt-block"><span class="prompt-label">Prompt &mdash; Cleanup</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Run a dry-run cleanup of notes — show me what would be removed without actually deleting anything.</div>
+          <p><span class="tool-ref">cleanup_notes</span> with <code>dryRun: true</code> previews stale or superseded notes.</p>
+
+          <div class="callout callout-info">
+            <strong>When to use notes vs CLAUDE.md memory:</strong>
+            Notes are for <em>design knowledge</em> &mdash; decisions about the UI, component rules, visual conventions. CLAUDE.md memory is for <em>workflow preferences</em> &mdash; how you want Claude to behave. Use both.
+          </div>
+        </section>
+
+        <!-- ============================================================
+             CH 05 — COMPONENTS & TOKENS
+             ============================================================ -->
+        <section class="chapter" id="rex-components">
+          <div class="chapter-header">
+            <div class="chapter-heading"><span class="chapter-num">05</span>
+            <h2 class="chapter-title">Components &amp; Design Tokens</h2></div>
+            <p class="chapter-subtitle">Building and managing your design system in Figma.</p>
+          </div>
+
+          <h3>Working with Existing Components</h3>
+
+          <h4>Find and use a component</h4>
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Search for a Button component in the file, then create an instance of the "Primary / Large" variant on the current page.</div>
+          <p><span class="tool-ref">get_components</span> <span class="arrow">&rarr;</span> <span class="tool-ref">instantiate_component</span> with variant properties.</p>
+
+          <h4>Override instance properties</h4>
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>On my selected button instance, change the label to "Get Started" and set the icon to hidden.</div>
+          <p><span class="tool-ref">set_instance_properties</span> updates text, boolean, and instance-swap properties.</p>
+
+          <h3>Creating Components</h3>
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Convert my selected frame into a component. Add these properties:
+- "Label" (text, default "Button")
+- "Icon Visible" (boolean, default true)
+- "Size" (variant: Small, Medium, Large)
+
+Set the description to "Primary action button for forms and CTAs."</div>
+          <p><span class="tool-ref">create_component</span> <span class="arrow">&rarr;</span> <span class="tool-ref">add_component_property</span> (for each) <span class="arrow">&rarr;</span> <span class="tool-ref">set_description</span></p>
+
+          <h3>Design Tokens / Variables</h3>
+
+          <h4>Set up a complete token system</h4>
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Create a design token system:
+- Collection: "Colors"
+- Modes: "Light", "Dark"
+- Variables:
+  - "bg/primary": Light=#FFFFFF, Dark=#111111
+  - "bg/secondary": Light=#F5F5F5, Dark=#1A1A1A
+  - "text/primary": Light=#111111, Dark=#FFFFFF
+  - "text/secondary": Light=#666666, Dark=#A0A0A0
+  - "accent/default": Light=#2563EB, Dark=#60A5FA</div>
+          <p><span class="tool-ref">setup_design_tokens</span> creates the entire system atomically &mdash; collection, modes, and all variables in one call.</p>
+
+          <h4>Update token values</h4>
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Update the "accent/default" variable: set the Dark mode value to #818CF8.</div>
+          <p><span class="tool-ref">update_variables</span> modifies values for specific modes.</p>
+
+          <h4>Inspect existing tokens</h4>
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>List all variables in the "Colors" collection and show their values for each mode.</div>
+          <p><span class="tool-ref">get_variables</span> with collection name filter.</p>
+        </section>
+
+        <!-- ============================================================
+             CH 06 — REX ADVANCED
+             ============================================================ -->
+        <section class="chapter" id="rex-advanced">
+          <div class="chapter-header">
+            <div class="chapter-heading"><span class="chapter-num">06</span>
+            <h2 class="chapter-title">Rex Advanced</h2></div>
+            <p class="chapter-subtitle">Batch operations, arbitrary code execution, and chat.</p>
+          </div>
+
+          <h3>Batch Operations</h3>
+          <p>When you need to update many nodes at once, batch tools are dramatically faster.</p>
+
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Find all text layers on this page that use the color #333333 and change them all to #111827.</div>
+          <p><span class="tool-ref">search_nodes</span> <span class="arrow">&rarr;</span> <span class="tool-ref">batch_update_nodes</span> (up to 50 at a time). Claude will loop through in chunks if there are more.</p>
+
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Apply these changes atomically — if any one fails, roll back all of them:
+1. Rename frame A to "Hero Section"
+2. Change its background to linear-gradient (#1E40AF to #7C3AED)
+3. Update the heading text to "Design at Scale"</div>
+          <p><span class="tool-ref">batch_execute</span> with <code>atomic: true</code> ensures all-or-nothing execution.</p>
+
+          <h3>Execute (Escape Hatch)</h3>
+          <p>For anything the dedicated tools don't cover, <span class="tool-ref">execute</span> runs raw JavaScript in the Figma plugin sandbox.</p>
+
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Run a script to find all frames wider than 1440px and log their names and widths.</div>
+
+          <div class="callout callout-important">
+            <strong>Use execute sparingly.</strong> Prefer the dedicated tools &mdash; they have validation, error handling, and are easier to review. Only use execute for edge cases that no tool covers.
+          </div>
+
+          <h3>Chat (Plugin Communication)</h3>
+          <p>Rex has a two-way chat system between Claude and the Figma plugin. You can also @mention Rex in Figma comments.</p>
+
+          <div class="prompt-block"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Listen for any incoming messages from the Figma plugin.</div>
+          <p><span class="tool-ref">wait_for_chat</span> long-polls for messages. <span class="tool-ref">send_chat_response</span> sends replies back. <span class="tool-ref">send_chat_chunk</span> supports streaming responses.</p>
+        </section>
+
+        <!-- ============================================================
+             CH 07 — OSIRIS BASICS
+             ============================================================ -->
+        <section class="chapter" id="osiris-basics">
+          <div class="chapter-header">
+            <div class="chapter-heading"><span class="chapter-num">07</span>
+            <h2 class="chapter-title">Browsing the Design Database</h2></div>
+            <p class="chapter-subtitle">Discovering and exploring curated design references with Osiris.</p>
+          </div>
+
+          <h3>List Available Collections</h3>
+          <div class="prompt-block osiris"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Show me all the design buckets available in Osiris.</div>
+          <p><span class="tool-ref">osiris_list_buckets</span> returns curated collections with screen counts and descriptions.</p>
+
+          <h3>Explore a Bucket</h3>
+          <div class="prompt-block osiris"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Get the top 10 screens from the "fintech" bucket, sorted by overall quality. Show me the insights for this bucket too.</div>
+          <p><span class="tool-ref">osiris_get_bucket_screens</span> + <span class="tool-ref">osiris_get_bucket_insights</span> gives you the best examples along with AI-generated analysis of patterns, moods, and recommendations.</p>
+
+          <h3>Search Across Everything</h3>
+          <div class="prompt-block osiris"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Search Osiris for premium, minimal dashboard screens with a calm mood. Minimum quality score of 7. Show me the top 12.</div>
+          <p><span class="tool-ref">osiris_search_screens</span> supports filters: <code>industry</code>, <code>screen_type</code>, <code>mood</code>, <code>layout</code>, <code>brand</code>, <code>tags</code>, <code>min_score</code>.</p>
+
+          <h3>Find Similar Screens</h3>
+          <div class="prompt-block osiris"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>I like screen "coinbase_dashboard_01". Find me 8 visually similar screens from the database.</div>
+          <p><span class="tool-ref">osiris_find_similar</span> with preset options:</p>
+
+          <div class="table-wrap">
+            <table>
+              <tr><th>Preset</th><th>Prioritizes</th></tr>
+              <tr><td><code>default</code></td><td>Balanced mix of visual + semantic</td></tr>
+              <tr><td><code>visual</code></td><td>Color, layout, density similarity</td></tr>
+              <tr><td><code>semantic</code></td><td>Purpose, industry, screen type</td></tr>
+              <tr><td><code>score</code></td><td>Similar quality/scoring profile</td></tr>
+            </table>
+          </div>
+
+          <h3>Browse Brands</h3>
+          <div class="prompt-block osiris"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>What luxury brands are available in Osiris? List them with screen counts.</div>
+          <p><span class="tool-ref">osiris_list_brands</span> with optional industry filter.</p>
+
+          <h3>Deep-Dive a Single Screen</h3>
+          <div class="prompt-block osiris"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Get the full analysis of screen "nubank_onboarding_03" — I want scores, color palette, typography, and layout details.</div>
+          <p><span class="tool-ref">osiris_get_screen_detail</span> returns the complete analysis including scores, verdict, spatial data, color palette, and typography info.</p>
+        </section>
+
+        <!-- ============================================================
+             CH 08 — MIMIC
+             ============================================================ -->
+        <section class="chapter" id="osiris-mimic">
+          <div class="chapter-header">
+            <div class="chapter-heading"><span class="chapter-num">08</span>
+            <h2 class="chapter-title">Mimic</h2></div>
+            <p class="chapter-subtitle">Generate a screen in Figma from any reference in the Osiris database.</p>
+          </div>
+
+          <p>Mimic is the fastest way to go from a reference screen to a buildable Figma design. One prompt pulls the screen's structural blueprint from Osiris and builds it directly in your file.</p>
+
+          <h3>The Basic Prompt</h3>
+          <div class="prompt-block osiris"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Generate a screen from osiris "apple_22"</div>
+          <p>That's it. Claude automatically fetches the screen's structure (called a SOM &mdash; Screen Object Model), then uses Rex to build it in your Figma file. No need to chain tools manually.</p>
+
+          <h3>With a Target Size</h3>
+          <div class="prompt-block osiris"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Generate a screen from osiris "cheval-blanc_home_01" scaled to 1440x900.</div>
+          <p>Pass target dimensions and the structure is recalculated to fit.</p>
+
+          <h3>Mimic Multiple for Studies</h3>
+          <div class="prompt-block osiris"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Generate screens from osiris: "stripe_pricing_01", "linear_dashboard_03", and "notion_home_02". Put each on a separate frame so I can compare them side by side.</div>
+          <p>This is the starting point for the <a href="#the-workflow">generate &rarr; curate &rarr; refine</a> workflow. Generate several, pick the best parts, then combine and polish.</p>
+
+          <div class="divider"></div>
+
+          <h3>What Happens Under the Hood</h3>
+          <p>Behind the scenes, Osiris stores a <strong>SOM</strong> (Screen Object Model) for each screen &mdash; a JSON tree describing every element's type, size, position, colors, typography, spacing, and children. When you say "generate a screen from osiris", Claude:</p>
+          <ol>
+            <li>Calls <span class="tool-ref">osiris_get_screen_som</span> to fetch the structural blueprint</li>
+            <li>Translates each SOM node into Figma frames, text layers, fills, and auto-layout via Rex</li>
+            <li>Builds it all in your current Figma page</li>
+          </ol>
+          <p>You don't need to know this to use it. But if you want to inspect or save a SOM manually, the tools are there: <span class="tool-ref">osiris_get_screen_som</span> and <span class="tool-ref">osiris_save_screen_som</span>.</p>
+
+          <div class="callout callout-important">
+            <strong>Remember:</strong> Mimic gives you a structural starting point, not a finished design. It's the first step in the <a href="#the-workflow">generate &rarr; curate &rarr; refine</a> loop. The designer's hand is what makes it real.
+          </div>
+        </section>
+
+        <!-- ============================================================
+             CH 09 — OSIRIS SCORING
+             ============================================================ -->
+        <section class="chapter" id="osiris-scoring">
+          <div class="chapter-header">
+            <div class="chapter-heading"><span class="chapter-num">09</span>
+            <h2 class="chapter-title">Scoring &amp; Self-Evaluation</h2></div>
+            <p class="chapter-subtitle">Benchmark your designs against the database.</p>
+          </div>
+
+          <h3>Understanding the Rubric</h3>
+          <div class="prompt-block osiris"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Show me the Osiris scoring rubric. I want to understand the exact criteria before evaluating my design.</div>
+          <p><span class="tool-ref">osiris_get_scoring_rubric</span> returns the dimensions and scales used to evaluate every screen in the database.</p>
+
+          <p>Key score dimensions (all 1&ndash;10):</p>
+
+          <div class="table-wrap">
+            <table>
+              <tr><th>Dimension</th><th>Measures</th></tr>
+              <tr><td><code>overall_quality</code></td><td>Overall design quality and polish</td></tr>
+              <tr><td><code>calm_confident</code></td><td>Visual calm, restraint, confidence</td></tr>
+              <tr><td><code>bold_forward</code></td><td>Boldness, forward-thinking energy</td></tr>
+              <tr><td><code>color_restraint</code></td><td>Disciplined use of color</td></tr>
+              <tr><td><code>hierarchy_clarity</code></td><td>Clear visual hierarchy</td></tr>
+              <tr><td><code>glanceability</code></td><td>How quickly it communicates</td></tr>
+              <tr><td><code>density</code></td><td>Information density balance</td></tr>
+              <tr><td><code>whitespace_ratio</code></td><td>Use of breathing room</td></tr>
+              <tr><td><code>brand_confidence</code></td><td>How strongly brand identity comes through</td></tr>
+            </table>
+          </div>
+
+          <h3>Get Benchmark Targets</h3>
+          <div class="prompt-block osiris"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Get the benchmark scores for the "luxury" bucket — I want to know what my design should hit to be competitive.</div>
+          <p><span class="tool-ref">osiris_get_bucket_benchmarks</span> returns average quality, calm/confident, and bold/forward scores for the bucket.</p>
+
+          <h3>Self-Evaluate and Compare</h3>
+          <div class="prompt-block osiris"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>I've self-scored my design:
+- overall_quality: 7
+- calm_confident: 8
+- bold_forward: 5
+- hierarchy_clarity: 7
+- whitespace_ratio: 8
+
+Compare these against the luxury bucket benchmarks and tell me where I need to improve.</div>
+          <p><span class="tool-ref">osiris_score_comparison</span> returns a scorecard with MEETS/CLOSE/BELOW status for each metric, plus actionable gap analysis and recommendations.</p>
+
+          <h3>The Evaluation Loop</h3>
+          <ol class="workflow-steps">
+            <li>Get the scoring rubric to understand criteria</li>
+            <li>Get bucket benchmarks for your target category</li>
+            <li>Design (or iterate on) your screen</li>
+            <li>Have Claude self-evaluate your design against the rubric</li>
+            <li>Run the comparison against benchmarks</li>
+            <li>Focus on the gaps identified</li>
+            <li>Repeat until all metrics show MEETS</li>
+          </ol>
+        </section>
+
+        <!-- ============================================================
+             CH 10 — COMBINED WORKFLOWS
+             ============================================================ -->
+        <section class="chapter" id="combined">
+          <div class="chapter-header">
+            <div class="chapter-heading"><span class="chapter-num">10</span>
+            <h2 class="chapter-title">Combined Workflows</h2></div>
+            <p class="chapter-subtitle">The most powerful patterns: reference, build, evaluate, iterate.</p>
+          </div>
+
+          <h3>Workflow A: Research-Driven Design</h3>
+          <p>Start with research in Osiris, then build in Figma with Rex.</p>
+
+          <div class="prompt-block combined"><span class="prompt-label">Prompt &mdash; Full workflow</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>I need to design a fintech dashboard. Here's what I want you to do:
+
+1. Search Osiris for the highest-quality fintech dashboard screens
+2. Get insights on what patterns work in this category
+3. Pick the best reference and mimic it into my Figma page
+4. Adapt it to our design tokens and component library
+5. Take a screenshot when done so we can review</div>
+
+          <p>This prompt chains: <span class="tool-ref">osiris_search_screens</span> <span class="arrow">&rarr;</span> <span class="tool-ref">osiris_get_bucket_insights</span> <span class="arrow">&rarr;</span> mimic (SOM + Rex build) <span class="arrow">&rarr;</span> <span class="tool-ref">screenshot</span></p>
+
+          <div class="divider"></div>
+
+          <h3>Workflow B: Mimic + Compare</h3>
+          <p>Generate multiple references side by side, then pick the best parts.</p>
+
+          <div class="prompt-block combined"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Generate screens from osiris: "stripe_pricing_01", "linear_pricing_02", and "notion_pricing_01" — each at 1440x900. Put them side by side so I can compare approaches.</div>
+
+          <p>Three mimic'd screens in one prompt. Curate the best elements from each, then ask Rex to combine them into a new direction.</p>
+
+          <div class="divider"></div>
+
+          <h3>Workflow C: Score, Iterate, Verify</h3>
+          <p>Use Osiris to evaluate, Rex to fix, Osiris to re-evaluate.</p>
+
+          <div class="prompt-block combined"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Take a screenshot of my current design. Then:
+1. Get the scoring rubric from Osiris
+2. Self-evaluate my design against each dimension
+3. Get the benchmark scores for the "premium-saas" bucket
+4. Compare my scores vs benchmarks
+5. For any dimension that scores BELOW, suggest specific changes
+6. Make the changes in Figma using Rex
+7. Take a new screenshot and re-evaluate</div>
+
+          <div class="divider"></div>
+
+          <h3>Workflow D: Find Inspiration, Save Knowledge</h3>
+          <div class="prompt-block combined"><span class="prompt-label">Prompt</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Search Osiris for calm, premium onboarding screens. Show me the top 5 with their scores. Then save a note summarizing the key patterns we should follow for our onboarding redesign — include the specific screens as references.</div>
+
+          <p>Combines <span class="tool-ref">osiris_search_screens</span> <span class="arrow">&rarr;</span> analysis <span class="arrow">&rarr;</span> <span class="tool-ref">note</span> (Rex) to capture insights as persistent team knowledge.</p>
+        </section>
+
+        <!-- ============================================================
+             CH 11 — PROMPT PATTERNS
+             ============================================================ -->
+        <section class="chapter" id="prompt-patterns">
+          <div class="chapter-header">
+            <div class="chapter-heading"><span class="chapter-num">11</span>
+            <h2 class="chapter-title">Prompt Patterns &amp; Tips</h2></div>
+            <p class="chapter-subtitle">Write better prompts, get better results.</p>
+          </div>
+
+          <h3>Be Specific About Structure</h3>
+          <div class="two-col stagger">
+            <div class="card fade-in compare-weak">
+              <h4 style="color: var(--danger);">Weak</h4>
+              <div class="prompt-block tip"><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>"Make me a card."</div>
+            </div>
+            <div class="card fade-in compare-strong">
+              <h4 style="color: var(--combined);">Strong</h4>
+              <div class="prompt-block tip"><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>"Create a card: 360px wide, vertical auto-layout, 24px padding, 16px gap between elements. White background (#FFFFFF), 12px corner radius, subtle drop shadow (0 2px 8px rgba(0,0,0,0.08)). Contents: 16:9 image placeholder at the top, then a title in 18px/600 Inter #111827, then a description in 14px/400 Inter #6B7280 with max 2 lines."</div>
+            </div>
+          </div>
+
+          <h3>Reference What Exists</h3>
+          <div class="prompt-block tip"><span class="prompt-label">Good pattern</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Look at my existing "Card - Feature" component, then create 3 new variants: one with an icon instead of an image, one with a CTA button at the bottom, and one compact version at 280px wide.</div>
+          <p>Claude inspects the existing component first, then builds variants that are consistent with it.</p>
+
+          <h3>Chain Operations Explicitly</h3>
+          <div class="prompt-block tip"><span class="prompt-label">Good pattern</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Do this step by step:
+1. Search Osiris for luxury automotive hero sections
+2. Show me the top 3 with scores
+3. WAIT — let me pick which one to mimic before building anything
+4. After I approve, generate the screen in Figma</div>
+          <p>Using numbered steps and explicit pauses ("WAIT", "show me before proceeding") keeps you in control of multi-step workflows.</p>
+
+          <h3>Use Notes for Context</h3>
+          <div class="prompt-block tip"><span class="prompt-label">Good pattern</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>Before making any changes, check the notes for any conventions about button sizing and color usage. Then apply those conventions as you build the new toolbar.</div>
+
+          <h3>Ask for Screenshots at Checkpoints</h3>
+          <div class="prompt-block tip"><span class="prompt-label">Good pattern</span><button class="copy-btn" onclick="copyPrompt(this)">&#x2398;</button>After each major section (header, hero, features, footer), take a screenshot so I can review before you continue.</div>
+
+          <div class="pull-quote">Tell Claude what you want the result to look like, not what tools to use. Say "build a pricing table with 3 tiers" rather than "use create_node to make frames."</div>
+
+          <h3>Common Mistakes</h3>
+          <div class="table-wrap">
+            <table>
+              <tr><th>Mistake</th><th>Fix</th></tr>
+              <tr><td>Not checking what's on the page first</td><td>Start prompts with "Look at my current page first, then..."</td></tr>
+              <tr><td>Giving hex colors without context</td><td>Reference your design tokens: "use our bg/primary token" or give the hex</td></tr>
+              <tr><td>Forgetting to specify fonts</td><td>Always include font family, weight, and size for text</td></tr>
+              <tr><td>Building everything in one giant prompt</td><td>Break complex layouts into sections with review checkpoints</td></tr>
+              <tr><td>Not saving decisions as notes</td><td>After any design discussion, save the outcome as a note</td></tr>
+            </table>
+          </div>
+        </section>
+
+        <!-- ============================================================
+             CH 12 — TOOL REFERENCE
+             ============================================================ -->
+        <section class="chapter" id="tool-reference">
+          <div class="chapter-header">
+            <div class="chapter-heading"><span class="chapter-num">12</span>
+            <h2 class="chapter-title">Tool Reference</h2></div>
+            <p class="chapter-subtitle">All tools at a glance. Search or expand any section.</p>
+          </div>
+
+          <div class="search-box">
+            <span class="search-icon">&#x26B2;</span>
+            <input type="text" id="toolSearch" placeholder="Search tools by name or purpose..." oninput="filterTools(this.value)">
+          </div>
+
+          <h3><span class="badge badge-rex">Rex</span> &nbsp;Tools (50+)</h3>
+
+          <!-- Read -->
+          <div class="collapsible open" data-tools>
+            <button class="collapsible-trigger" onclick="toggleCollapsible(this)">
+              Read <span class="chevron">&#x25BE;</span>
+            </button>
+            <div class="collapsible-content">
+              <div class="table-wrap" style="border:none;border-radius:0;margin:0">
+                <table>
+                  <tr><th>Tool</th><th>Purpose</th></tr>
+                  <tr><td><code>get_node</code></td><td>Get detailed data for nodes by ID</td></tr>
+                  <tr><td><code>get_selection</code></td><td>Get currently selected nodes</td></tr>
+                  <tr><td><code>get_page</code></td><td>Get page structure (summary/standard/full)</td></tr>
+                  <tr><td><code>search_nodes</code></td><td>Search by name, type, or properties</td></tr>
+                  <tr><td><code>screenshot</code></td><td>Capture PNG/JPG/SVG of nodes or page</td></tr>
+                  <tr><td><code>get_styles</code></td><td>Get all styles (fill, text, effect, grid)</td></tr>
+                  <tr><td><code>get_variables</code></td><td>Get variables/collections with filtering</td></tr>
+                  <tr><td><code>get_components</code></td><td>Get published components and component sets</td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Create & Edit -->
+          <div class="collapsible" data-tools>
+            <button class="collapsible-trigger" onclick="toggleCollapsible(this)">
+              Create &amp; Edit <span class="chevron">&#x25BE;</span>
+            </button>
+            <div class="collapsible-content">
+              <div class="table-wrap" style="border:none;border-radius:0;margin:0">
+                <table>
+                  <tr><th>Tool</th><th>Purpose</th></tr>
+                  <tr><td><code>create_node</code></td><td>Create node or composite tree (atomic)</td></tr>
+                  <tr><td><code>update_node</code></td><td>Update any node properties</td></tr>
+                  <tr><td><code>batch_update_nodes</code></td><td>Update up to 50 nodes atomically</td></tr>
+                  <tr><td><code>delete_nodes</code></td><td>Delete nodes by ID</td></tr>
+                  <tr><td><code>clone_node</code></td><td>Duplicate with optional reparent</td></tr>
+                  <tr><td><code>reparent_node</code></td><td>Move node to different parent</td></tr>
+                  <tr><td><code>reorder_children</code></td><td>Reorder for z-index control</td></tr>
+                  <tr><td><code>set_text</code></td><td>Set text content + styling (auto font load)</td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Visual Properties -->
+          <div class="collapsible" data-tools>
+            <button class="collapsible-trigger" onclick="toggleCollapsible(this)">
+              Visual Properties <span class="chevron">&#x25BE;</span>
+            </button>
+            <div class="collapsible-content">
+              <div class="table-wrap" style="border:none;border-radius:0;margin:0">
+                <table>
+                  <tr><th>Tool</th><th>Purpose</th></tr>
+                  <tr><td><code>set_fills</code></td><td>Solid, gradient, or image fills</td></tr>
+                  <tr><td><code>set_strokes</code></td><td>Stroke weight, alignment, dash pattern</td></tr>
+                  <tr><td><code>set_effects</code></td><td>Shadows, blurs</td></tr>
+                  <tr><td><code>set_corner_radius</code></td><td>Uniform or per-corner radius</td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Layout -->
+          <div class="collapsible" data-tools>
+            <button class="collapsible-trigger" onclick="toggleCollapsible(this)">
+              Layout <span class="chevron">&#x25BE;</span>
+            </button>
+            <div class="collapsible-content">
+              <div class="table-wrap" style="border:none;border-radius:0;margin:0">
+                <table>
+                  <tr><th>Tool</th><th>Purpose</th></tr>
+                  <tr><td><code>set_auto_layout</code></td><td>Configure auto-layout on a frame</td></tr>
+                  <tr><td><code>set_layout_child</code></td><td>Configure child in auto-layout parent</td></tr>
+                  <tr><td><code>batch_set_layout_children</code></td><td>Configure multiple children at once</td></tr>
+                  <tr><td><code>set_layout_grid</code></td><td>Add column/row/grid guides</td></tr>
+                  <tr><td><code>set_constraints</code></td><td>Set constraints (non-auto-layout)</td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Components -->
+          <div class="collapsible" data-tools>
+            <button class="collapsible-trigger" onclick="toggleCollapsible(this)">
+              Components <span class="chevron">&#x25BE;</span>
+            </button>
+            <div class="collapsible-content">
+              <div class="table-wrap" style="border:none;border-radius:0;margin:0">
+                <table>
+                  <tr><th>Tool</th><th>Purpose</th></tr>
+                  <tr><td><code>instantiate_component</code></td><td>Create instance with variant selection</td></tr>
+                  <tr><td><code>set_instance_properties</code></td><td>Override instance properties</td></tr>
+                  <tr><td><code>create_component</code></td><td>Convert frame to component</td></tr>
+                  <tr><td><code>create_component_set</code></td><td>Combine into variant group</td></tr>
+                  <tr><td><code>add_component_property</code></td><td>Add property to component</td></tr>
+                  <tr><td><code>edit_component_property</code></td><td>Modify component property</td></tr>
+                  <tr><td><code>delete_component_property</code></td><td>Remove component property</td></tr>
+                  <tr><td><code>set_description</code></td><td>Set description on component/style</td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Design Tokens -->
+          <div class="collapsible" data-tools>
+            <button class="collapsible-trigger" onclick="toggleCollapsible(this)">
+              Design Tokens <span class="chevron">&#x25BE;</span>
+            </button>
+            <div class="collapsible-content">
+              <div class="table-wrap" style="border:none;border-radius:0;margin:0">
+                <table>
+                  <tr><th>Tool</th><th>Purpose</th></tr>
+                  <tr><td><code>setup_design_tokens</code></td><td>Create full token system atomically</td></tr>
+                  <tr><td><code>create_variable_collection</code></td><td>Create new collection</td></tr>
+                  <tr><td><code>create_variables</code></td><td>Create 1&ndash;100 variables in collection</td></tr>
+                  <tr><td><code>update_variables</code></td><td>Update values for specific modes</td></tr>
+                  <tr><td><code>delete_variable</code></td><td>Delete a variable</td></tr>
+                  <tr><td><code>rename_variable</code></td><td>Rename (use "/" for groups)</td></tr>
+                  <tr><td><code>add_mode</code></td><td>Add mode to collection</td></tr>
+                  <tr><td><code>rename_mode</code></td><td>Rename existing mode</td></tr>
+                  <tr><td><code>delete_variable_collection</code></td><td>Delete collection and all variables</td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pages & Comments -->
+          <div class="collapsible" data-tools>
+            <button class="collapsible-trigger" onclick="toggleCollapsible(this)">
+              Pages &amp; Comments <span class="chevron">&#x25BE;</span>
+            </button>
+            <div class="collapsible-content">
+              <div class="table-wrap" style="border:none;border-radius:0;margin:0">
+                <table>
+                  <tr><th>Tool</th><th>Purpose</th></tr>
+                  <tr><td><code>create_page</code></td><td>Create new page</td></tr>
+                  <tr><td><code>rename_page</code></td><td>Rename page</td></tr>
+                  <tr><td><code>delete_page</code></td><td>Delete page and contents</td></tr>
+                  <tr><td><code>set_current_page</code></td><td>Switch active page</td></tr>
+                  <tr><td><code>post_comment</code></td><td>Post comment (optionally pinned to node)</td></tr>
+                  <tr><td><code>delete_comment</code></td><td>Delete a comment</td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Notes (Memory) -->
+          <div class="collapsible" data-tools>
+            <button class="collapsible-trigger" onclick="toggleCollapsible(this)">
+              Notes (Memory) <span class="chevron">&#x25BE;</span>
+            </button>
+            <div class="collapsible-content">
+              <div class="table-wrap" style="border:none;border-radius:0;margin:0">
+                <table>
+                  <tr><th>Tool</th><th>Purpose</th></tr>
+                  <tr><td><code>note</code></td><td>Save design knowledge</td></tr>
+                  <tr><td><code>notes</code></td><td>Query notes by search text</td></tr>
+                  <tr><td><code>browse_notes</code></td><td>List by scope/category</td></tr>
+                  <tr><td><code>remove_note</code></td><td>Delete a note</td></tr>
+                  <tr><td><code>cleanup_notes</code></td><td>Remove stale/superseded notes</td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Utilities -->
+          <div class="collapsible" data-tools>
+            <button class="collapsible-trigger" onclick="toggleCollapsible(this)">
+              Utilities <span class="chevron">&#x25BE;</span>
+            </button>
+            <div class="collapsible-content">
+              <div class="table-wrap" style="border:none;border-radius:0;margin:0">
+                <table>
+                  <tr><th>Tool</th><th>Purpose</th></tr>
+                  <tr><td><code>execute</code></td><td>Run arbitrary JS in Figma plugin</td></tr>
+                  <tr><td><code>batch_execute</code></td><td>Execute multiple ops atomically</td></tr>
+                  <tr><td><code>get_status</code></td><td>Check Rex connection health</td></tr>
+                  <tr><td><code>wait_for_chat</code></td><td>Listen for plugin messages</td></tr>
+                  <tr><td><code>send_chat_response</code></td><td>Reply to plugin chat</td></tr>
+                  <tr><td><code>send_chat_chunk</code></td><td>Stream reply chunks</td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <h3><span class="badge badge-osiris">Osiris</span> &nbsp;Tools (12)</h3>
+
+          <div class="collapsible open" data-tools>
+            <button class="collapsible-trigger" onclick="toggleCollapsible(this)">
+              All Osiris Tools <span class="chevron">&#x25BE;</span>
+            </button>
+            <div class="collapsible-content">
+              <div class="table-wrap" style="border:none;border-radius:0;margin:0">
+                <table>
+                  <tr><th>Tool</th><th>Purpose</th></tr>
+                  <tr><td><code>osiris_list_buckets</code></td><td>List all curated design collections</td></tr>
+                  <tr><td><code>osiris_get_bucket_insights</code></td><td>AI-generated insights for a bucket</td></tr>
+                  <tr><td><code>osiris_get_bucket_screens</code></td><td>Top screens from a bucket (sorted)</td></tr>
+                  <tr><td><code>osiris_get_bucket_benchmarks</code></td><td>Average scores to target</td></tr>
+                  <tr><td><code>osiris_get_screen_detail</code></td><td>Full analysis of a single screen</td></tr>
+                  <tr><td><code>osiris_get_screen_som</code></td><td>Get screen structure for Mimic</td></tr>
+                  <tr><td><code>osiris_save_screen_som</code></td><td>Save a screen structure back to Osiris</td></tr>
+                  <tr><td><code>osiris_get_scoring_rubric</code></td><td>Scoring dimensions and scales</td></tr>
+                  <tr><td><code>osiris_score_comparison</code></td><td>Compare your scores vs benchmarks</td></tr>
+                  <tr><td><code>osiris_find_similar</code></td><td>Find visually/semantically similar screens</td></tr>
+                  <tr><td><code>osiris_search_screens</code></td><td>Search/filter full database</td></tr>
+                  <tr><td><code>osiris_list_brands</code></td><td>List brands (optionally by industry)</td></tr>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+      </div><!-- .content -->
+    </main>
+  </div><!-- .layout -->
+
+  <!-- ============================================================
+       JAVASCRIPT
+       ============================================================ -->
+  <script>
+    // ---- Progress Bar ----
+    function updateProgress() {
+      const scrollTop = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
+      document.getElementById('progressBar').style.width = progress + '%';
+    }
+    window.addEventListener('scroll', updateProgress, { passive: true });
+
+    // ---- Theme Toggle ----
+    const themeToggle = document.getElementById('themeToggle');
+    const themeIcon = document.getElementById('themeIcon');
+    const html = document.documentElement;
+
+    // Check saved preference
+    const savedTheme = localStorage.getItem('rex-guide-theme');
+    if (savedTheme) {
+      html.setAttribute('data-theme', savedTheme);
+      themeIcon.textContent = savedTheme === 'dark' ? '\u2600' : '\u263E';
+    }
+
+    themeToggle.addEventListener('click', () => {
+      const current = html.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      themeIcon.textContent = next === 'dark' ? '\u2600' : '\u263E';
+      localStorage.setItem('rex-guide-theme', next);
+    });
+
+    // ---- Mobile Nav ----
+    const navToggle = document.getElementById('navToggle');
+    const sidebar = document.getElementById('sidebar');
+    const navOverlay = document.getElementById('navOverlay');
+
+    navToggle.addEventListener('click', () => {
+      sidebar.classList.toggle('open');
+      navOverlay.classList.toggle('visible');
+    });
+
+    navOverlay.addEventListener('click', () => {
+      sidebar.classList.remove('open');
+      navOverlay.classList.remove('visible');
+    });
+
+    // Close nav on link click (mobile)
+    document.querySelectorAll('.nav-link').forEach(link => {
+      link.addEventListener('click', () => {
+        if (window.innerWidth <= 960) {
+          sidebar.classList.remove('open');
+          navOverlay.classList.remove('visible');
+        }
+      });
+    });
+
+    // ---- Active Nav on Scroll (Intersection Observer) ----
+    const chapters = document.querySelectorAll('.chapter, .hero');
+    const navLinks = document.querySelectorAll('.nav-link');
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const id = entry.target.id;
+          navLinks.forEach(link => {
+            link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+          });
+        }
+      });
+    }, {
+      rootMargin: '-10% 0px -80% 0px',
+      threshold: 0
+    });
+
+    chapters.forEach(chapter => observer.observe(chapter));
+
+    // ---- Fade-in on Scroll ----
+    const fadeObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, {
+      rootMargin: '0px 0px -60px 0px',
+      threshold: 0.1
+    });
+
+    document.querySelectorAll('.fade-in').forEach(el => fadeObserver.observe(el));
+
+    // ---- Copy to Clipboard ----
+    function copyPrompt(btn) {
+      const block = btn.closest('.prompt-block');
+      // Get text content excluding the label and button
+      const clone = block.cloneNode(true);
+      const label = clone.querySelector('.prompt-label');
+      const copyBtn = clone.querySelector('.copy-btn');
+      if (label) label.remove();
+      if (copyBtn) copyBtn.remove();
+      const text = clone.textContent.trim();
+
+      navigator.clipboard.writeText(text).then(() => {
+        btn.classList.add('copied');
+        btn.textContent = '\u2713';
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          btn.textContent = '\u2398';
+        }, 1500);
+      });
+    }
+
+    // ---- Collapsible Sections ----
+    function toggleCollapsible(trigger) {
+      const collapsible = trigger.closest('.collapsible');
+      collapsible.classList.toggle('open');
+    }
+
+    // ---- Tool Search / Filter ----
+    function filterTools(query) {
+      const q = query.toLowerCase().trim();
+      const collapsibles = document.querySelectorAll('.collapsible[data-tools]');
+
+      collapsibles.forEach(section => {
+        const rows = section.querySelectorAll('tr');
+        let hasMatch = false;
+
+        rows.forEach((row, i) => {
+          if (i === 0) return; // skip header
+          const text = row.textContent.toLowerCase();
+          const match = !q || text.includes(q);
+          row.style.display = match ? '' : 'none';
+          if (match) hasMatch = true;
+        });
+
+        // Show section if it has matches, open it
+        section.style.display = (!q || hasMatch) ? '' : 'none';
+        if (q && hasMatch) {
+          section.classList.add('open');
+        }
+      });
+    }
+  </script>
+</body>
+</html>

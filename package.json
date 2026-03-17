@@ -29,9 +29,12 @@
     "cheerio": "^1.0.0",
     "dotenv": "^16.4.7",
     "express": "^5.2.1",
+    "express-session": "^1.19.0",
     "fs-extra": "^11.2.0",
     "mongodb": "^6.12.0",
     "node-fetch": "^3.3.2",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
     "puppeteer": "^24.2.0",
     "sharp": "^0.33.5"
   }

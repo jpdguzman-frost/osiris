@@ -120,6 +120,9 @@ if [ ! -f ${DEST_DIR}/config/.env ]; then
     echo '  BASE_PATH=/osiris'
     echo '  MONGODB_URI=mongodb://localhost:27017'
     echo '  ANTHROPIC_API_KEY=sk-ant-...'
+    echo '  GOOGLE_CLIENT_ID=...'
+    echo '  GOOGLE_CLIENT_SECRET=...'
+    echo '  SESSION_SECRET=...'
 fi
 "
 
@@ -146,6 +149,9 @@ echo -e "   • PORT=3950"
 echo -e "   • BASE_PATH=/osiris"
 echo -e "   • MONGODB_URI=mongodb://localhost:27017"
 echo -e "   • ANTHROPIC_API_KEY=sk-ant-..."
+echo -e "   • GOOGLE_CLIENT_ID=..."
+echo -e "   • GOOGLE_CLIENT_SECRET=..."
+echo -e "   • SESSION_SECRET=..."
 echo ""
 echo -e "   ${YELLOW}Apache Config (add to aux.frostdesigngroup.com VirtualHost):${NC}"
 echo -e "   • ProxyPreserveHost On"
