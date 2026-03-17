@@ -152,6 +152,14 @@ export class Store {
     );
   }
 
+  async updateSOM(screenId, som) {
+    await this.connect();
+    return this.db.collection('screens').updateOne(
+      { screen_id: screenId },
+      { $set: { som, som_generated_at: new Date(), updated_at: new Date() } },
+    );
+  }
+
   // ── Query Functions ─────────────────────────────────────────────────────
 
   async queryTopScreens(scoreField, minScore, limit = 50) {

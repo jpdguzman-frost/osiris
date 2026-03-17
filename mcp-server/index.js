@@ -9,11 +9,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { readFileSync } from 'fs';
-import { resolve, dirname } from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const API_BASE = process.env.OSIRIS_API_BASE || 'https://aux.frostdesigngroup.com/osiris';
 
@@ -34,16 +29,6 @@ async function apiGet(path, params = {}) {
 
 function textResult(content) {
   return { content: [{ type: 'text', text: typeof content === 'string' ? content : JSON.stringify(content, null, 2) }] };
-}
-
-// ─── Rubric (loaded once from disk) ─────────────────────────────────────────
-
-const RUBRIC_PATH = resolve(__dirname, '..', 'config', 'rubric.md');
-let rubricText;
-try {
-  rubricText = readFileSync(RUBRIC_PATH, 'utf-8');
-} catch {
-  rubricText = null;
 }
 
 // ─── Server ─────────────────────────────────────────────────────────────────
@@ -158,14 +143,59 @@ server.tool(
 );
 
 server.tool(
+  'osiris_get_screen_som',
+  'Get the cached Screen Object Model (SOM) for a screen — a recursive node tree decomposition with element hierarchy, sizes, spacing, colors, typography, and layout that maps directly to Figma/Rex build instructions. Returns 404 if no SOM has been generated yet. Optionally scales to target dimensions.',
+  {
+    screen_id: z.string().describe('Screen ID (from bucket screens or search results)'),
+    target_width: z.number().optional().describe('Target artboard width in pixels for scaling'),
+    target_height: z.number().optional().describe('Target artboard height in pixels for scaling'),
+  },
+  async ({ screen_id, target_width, target_height }) => {
+    const params = {};
+    if (target_width) params.target_width = target_width;
+    if (target_height) params.target_height = target_height;
+    const som = await apiGet(`/api/screens/${screen_id}/som`, params);
+    return textResult(som);
+  }
+);
+
+server.tool(
+  'osiris_save_screen_som',
+  'Save a Screen Object Model (SOM) to a screen. The SOM is a recursive node tree produced by Claude Code after visually analyzing a screenshot. It is validated and post-processed (grid-snapped, color-fixed) before storage.',
+  {
+    screen_id: z.string().describe('Screen ID to attach the SOM to'),
+    som: z.object({
+      referenceFrame: z.object({ width: z.number(), height: z.number() }).optional(),
+      screenType: z.string().optional(),
+      platform: z.string().optional(),
+      version: z.number().optional(),
+      root: z.any(),
+    }).describe('The SOM JSON object with a root node tree'),
+  },
+  async ({ screen_id, som }) => {
+    const url = new URL(`${API_BASE}/api/screens/${screen_id}/som`);
+    const res = await fetch(url.toString(), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(som),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || `Osiris API ${res.status}`);
+    }
+    return textResult(await res.json());
+  }
+);
+
+server.tool(
   'osiris_get_scoring_rubric',
   'Get the Osiris scoring rubric — the exact dimensions and scales used to evaluate UI designs. Use this to understand what each score means before self-evaluating.',
   {},
   async () => {
-    if (!rubricText) {
-      return textResult({ error: 'Rubric file not found. Expected at config/rubric.md relative to the osiris project root.' });
-    }
-    return textResult(rubricText);
+    const res = await fetch(`${API_BASE}/api/rubric`);
+    if (!res.ok) return textResult({ error: 'Could not fetch rubric from Osiris API.' });
+    const text = await res.text();
+    return textResult(text);
   }
 );
 

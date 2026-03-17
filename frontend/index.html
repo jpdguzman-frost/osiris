@@ -32,6 +32,7 @@
       <div class="nav-link {{#if currentView === 'buckets' || currentView === 'bucketDetail'}}active{{/if}}" on-click="@this.navigate('/buckets')">Buckets</div>
       <div class="nav-link {{#if currentView === 'scatter'}}active{{/if}}" on-click="@this.navigate('/scatter')">Scatter</div>
       <div class="nav-link {{#if currentView === 'benchmark'}}active{{/if}}" on-click="@this.navigate('/benchmark')">Benchmark</div>
+      <div class="nav-link {{#if currentView === 'correlations'}}active{{/if}}" on-click="@this.navigate('/correlations')">Correlations</div>
     </div>
     <div class="nav-spacer"></div>
     {{#if stats}}
@@ -52,6 +53,8 @@
       {{>scatter}}
     {{elseif currentView === 'benchmark'}}
       {{>benchmark}}
+    {{elseif currentView === 'correlations'}}
+      {{>correlations}}
     {{elseif currentView === 'detail'}}
       {{>detail}}
     {{/if}}
@@ -1424,6 +1427,170 @@
     <div class="empty-state" style="margin-top: var(--space-12);">
       <div class="empty-state-title">Select a group and click Compare</div>
       <p>See how a brand, industry, or bucket's design scores compare against a benchmark.</p>
+    </div>
+    {{/if}}
+  </div>
+</script>
+
+<script id="correlations-template" type="text/ractive">
+  <div class="correlations-page">
+
+    <!-- Toolbar -->
+    <div class="correlations-toolbar">
+      <div class="correlations-toolbar-title">
+        <h1>Correlations</h1>
+      </div>
+      <div class="corr-view-tabs">
+        <button class="preset-pill {{#if correlationsTab === 'mixer'}}active{{/if}}" on-click="@this.switchCorrelationsTab('mixer')">Design Mixer</button>
+        <button class="preset-pill {{#if correlationsTab === 'matrix'}}active{{/if}}" on-click="@this.switchCorrelationsTab('matrix')">Correlation Matrix</button>
+      </div>
+      <div class="nav-spacer"></div>
+      <select class="filter-select" value="{{correlationsFilter}}" on-change="@this.onCorrelationsFilterChange()">
+        <option value="">Global Baseline</option>
+        {{#if industries.length}}
+        <optgroup label="Industries">
+          {{#each industries}}
+          <option value="industry:{{this.id}}">{{this.name}}</option>
+          {{/each}}
+        </optgroup>
+        {{/if}}
+        {{#if bucketList.length}}
+        <optgroup label="Buckets">
+          {{#each bucketList}}
+          <option value="bucket:{{this._id}}">{{this.name}} ({{this.count}})</option>
+          {{/each}}
+        </optgroup>
+        {{/if}}
+      </select>
+    </div>
+
+    {{#if correlationsLoading}}
+    <div class="corr-loading">
+      <div class="loading"><span class="loading-dot"></span><span class="loading-dot"></span><span class="loading-dot"></span></div>
+      <p>Analyzing relationships across all screens...</p>
+    </div>
+
+    {{elseif correlationsError}}
+    <div class="corr-loading">
+      <p>Failed to load correlation data. Try refreshing.</p>
+    </div>
+
+    {{elseif correlationsData}}
+    <div class="corr-editorial">
+
+    {{#if correlationsTab === 'matrix'}}
+    <!-- Correlation Heatmap -->
+    <div class="corr-heatmap-layout">
+      <!-- Left: Heatmap -->
+      <div class="corr-heatmap-col">
+        <div class="corr-heatmap-wrap">
+          <canvas id="corr-heatmap"></canvas>
+        </div>
+        <div class="corr-legend">
+          <span class="corr-legend-label">-1 (tradeoff)</span>
+          <div class="corr-legend-bar"></div>
+          <span class="corr-legend-label">+1 (moves together)</span>
+        </div>
+      </div>
+
+      <!-- Right: Explanation panel -->
+      <div class="corr-explain-panel">
+        {{#if corrHoverPair}}
+        <div class="corr-explain-card">
+          <div class="corr-explain-header">
+            <div class="corr-explain-fields">
+              <span class="corr-explain-field">{{corrHoverPair.label_a}}</span>
+              <span class="corr-explain-vs">&amp;</span>
+              <span class="corr-explain-field">{{corrHoverPair.label_b}}</span>
+            </div>
+            <span class="corr-explain-badge corr-explain-badge-{{corrHoverPair.direction}}">
+              {{corrHoverPair.strength}} · r = {{corrHoverPair.r.toFixed(2)}}
+            </span>
+          </div>
+
+          <div class="corr-explain-narrative">
+            {{corrHoverPair.narrative}}
+          </div>
+
+          {{#if corrHoverPair.design_implication}}
+          <div class="corr-explain-implication">
+            <strong>Design takeaway:</strong> {{corrHoverPair.design_implication}}
+          </div>
+          {{/if}}
+
+          {{#if corrHoverPair.semantic_overlap}}
+          <div class="corr-explain-note">
+            These dimensions share conceptual overlap in their definitions — some of this correlation is expected.
+          </div>
+          {{/if}}
+
+          <div class="corr-explain-defs">
+            <div class="corr-explain-def">
+              <div class="corr-explain-def-label">{{corrHoverPair.label_a}}</div>
+              <div class="corr-explain-def-text">{{corrHoverPair.description_a}}</div>
+            </div>
+            <div class="corr-explain-def">
+              <div class="corr-explain-def-label">{{corrHoverPair.label_b}}</div>
+              <div class="corr-explain-def-text">{{corrHoverPair.description_b}}</div>
+            </div>
+          </div>
+        </div>
+        {{else}}
+        <div class="corr-explain-empty">
+          <div class="corr-explain-empty-text">Hover any cell to see the relationship explained</div>
+        </div>
+        {{/if}}
+      </div>
+    </div>
+    {{/if}}
+
+    {{#if correlationsTab === 'mixer'}}
+    <!-- Design Mixer -->
+    <h3 class="corr-label">Design Mixer</h3>
+    <p class="corr-narrative">Drag any slider to explore how dimensions respond to each other. The screens below update to show real examples closest to your configuration.</p>
+
+    <div class="mixer-controls">
+      <button class="btn btn-ghost btn-sm" on-click="@this.resetMixer()">Reset to Averages</button>
+    </div>
+
+    <div class="mixer-sliders">
+      {{#each mixerFields:i}}
+      <div class="mixer-slider-col {{this.isDriver ? 'mixer-driver' : ''}}">
+        <div class="mixer-value">{{this.value.toFixed(1)}}</div>
+        <input type="range" class="mixer-range"
+          min="{{this.min}}" max="{{this.max}}" step="0.1"
+          value="{{this.value}}"
+          on-input="@this.onMixerDrag(this.field, event.node.value)">
+        <div class="mixer-field-label">{{this.label}}</div>
+      </div>
+      {{/each}}
+    </div>
+
+    {{#if mixerScreensLoading}}
+    <div class="mixer-screens-loading">
+      <div class="loading"><span class="loading-dot"></span><span class="loading-dot"></span><span class="loading-dot"></span></div>
+    </div>
+    {{elseif mixerScreens.length}}
+    <h3 class="corr-label" style="margin-top: var(--space-8);">Closest Matches</h3>
+    <div class="mixer-screens">
+      {{#each mixerScreens}}
+      <div class="screen-card" on-click="@this.navigate('/screen/' + this.screen_id)">
+        <div class="screen-card-image">
+          <img src="{{this.image_url}}" loading="lazy">
+        </div>
+        <div class="screen-card-body">
+          <div class="screen-card-id">{{this.screen_id}}</div>
+          {{#if this.brand}}<div class="screen-card-brand">{{brandDisplayName(this.brand)}}</div>{{/if}}
+          <div class="screen-card-meta">
+            <span class="pill pill-industry">{{this.industry}}</span>
+          </div>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+    {{/if}}
+    {{/if}}
+
     </div>
     {{/if}}
   </div>

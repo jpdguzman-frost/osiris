@@ -8,6 +8,7 @@ import { Store } from './src/store.js';
 import { PATHS, CLAUDE_MODEL, SCORE_FIELDS as SCORE_FIELD_LISTS, brandDisplayName } from './src/utils.js';
 import { findSimilar, WEIGHT_PRESETS } from './src/similarity.js';
 import { setupAuth } from './src/auth.js';
+import { validateSOM, prepareSOM, scaleSOM } from './src/som.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -154,6 +155,58 @@ router.get('/api/screens', async (req, res) => {
   }
 });
 
+// ─── API: Screen SOM (Structural Object Model) ─────────────────────────────
+// NOTE: SOM routes must come BEFORE /api/screens/:id to avoid :id matching "apple_22/som"
+
+router.get('/api/screens/:id/som', async (req, res) => {
+  try {
+    const screen = await store.getScreen(req.params.id);
+    if (!screen) return res.status(404).json({ error: 'Screen not found' });
+    if (!screen.som) return res.status(404).json({ error: 'No SOM generated for this screen yet' });
+
+    // Validate scaling params
+    const hasWidth = req.query.target_width !== undefined;
+    const hasHeight = req.query.target_height !== undefined;
+    if (hasWidth !== hasHeight) {
+      return res.status(400).json({ error: 'Both target_width and target_height are required for scaling' });
+    }
+    if (hasWidth) {
+      const tw = parseInt(req.query.target_width, 10);
+      const th = parseInt(req.query.target_height, 10);
+      if (isNaN(tw) || isNaN(th) || tw <= 0 || th <= 0) {
+        return res.status(400).json({ error: 'target_width and target_height must be positive integers' });
+      }
+      return res.json(scaleSOM(screen.som, tw, th));
+    }
+
+    res.json(screen.som);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/api/screens/:id/som', async (req, res) => {
+  try {
+    const screen = await store.getScreen(req.params.id);
+    if (!screen) return res.status(404).json({ error: 'Screen not found' });
+
+    const som = req.body;
+    if (!som || !som.root) return res.status(400).json({ error: 'Request body must be a SOM with a root node' });
+
+    const validation = validateSOM(som);
+    if (!validation.valid) {
+      return res.status(400).json({ error: 'Invalid SOM', details: validation.errors });
+    }
+
+    const cleaned = prepareSOM(som);
+    await store.updateSOM(req.params.id, cleaned);
+
+    res.json({ ok: true, screen_id: req.params.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── API: Single Screen ──────────────────────────────────────────────────────
 
 router.get('/api/screens/:id', async (req, res) => {
@@ -263,6 +316,487 @@ router.get('/api/scatter', async (req, res) => {
       count: points.length,
       points,
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Correlations ──────────────────────────────────────────────────────
+
+let correlationCache = { data: null, ts: 0, key: '' };
+const CORRELATION_TTL = 5 * 60 * 1000; // 5 minutes
+
+const FIELD_ORDER = [...SCORE_FIELD_LISTS.core, ...SCORE_FIELD_LISTS.spectrum];
+const FIELD_LABELS = Object.fromEntries(
+  FIELD_ORDER.map(f => [f, f.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ')])
+);
+
+function pearsonOnValues(xs, ys) {
+  const n = xs.length;
+  if (n < 3) return 0;
+  let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
+  for (let i = 0; i < n; i++) {
+    sumX += xs[i]; sumY += ys[i];
+    sumXY += xs[i] * ys[i];
+    sumX2 += xs[i] * xs[i];
+    sumY2 += ys[i] * ys[i];
+  }
+  const denom = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+  if (denom === 0) return 0;
+  return (n * sumXY - sumX * sumY) / denom;
+}
+
+// Spearman rank correlation (Pearson on ranks) — more robust for ordinal integer scores
+function rankArray(arr) {
+  const indexed = arr.map((v, i) => ({ v, i }));
+  indexed.sort((a, b) => a.v - b.v);
+  const ranks = new Array(arr.length);
+  let pos = 0;
+  while (pos < indexed.length) {
+    let end = pos + 1;
+    while (end < indexed.length && indexed[end].v === indexed[pos].v) end++;
+    const avgRank = (pos + end - 1) / 2 + 1; // average rank for ties
+    for (let k = pos; k < end; k++) ranks[indexed[k].i] = avgRank;
+    pos = end;
+  }
+  return ranks;
+}
+
+function spearman(xs, ys) {
+  return pearsonOnValues(rankArray(xs), rankArray(ys));
+}
+
+// Semantic overlap pairs — correlations that are partly definitional, not purely visual
+const SEMANTIC_OVERLAPS = new Set([
+  'calm_confident|calm_energetic',
+  'bold_forward|forward_conservative',
+  'confident_tentative|calm_confident',
+  'density|whitespace_ratio',
+]);
+
+function isSemanticOverlap(f1, f2) {
+  return SEMANTIC_OVERLAPS.has(`${f1}|${f2}`) || SEMANTIC_OVERLAPS.has(`${f2}|${f1}`);
+}
+
+function strengthLabel(absR) {
+  if (absR >= 0.5) return 'strong';
+  if (absR >= 0.3) return 'moderate';
+  if (absR >= 0.15) return 'weak';
+  return 'negligible';
+}
+
+const FIELD_DESCRIPTIONS = {
+  color_restraint: 'How well the design limits its color palette. High-scoring screens use fewer, more intentional colors.',
+  hierarchy_clarity: 'How easy it is to tell what\'s most important on the screen.',
+  glanceability: 'How quickly you can understand the screen\'s purpose at a glance.',
+  density: 'How well the screen balances the amount of content with breathing room.',
+  whitespace_ratio: 'How effectively the design uses empty space to separate and frame content.',
+  brand_confidence: 'How strongly the design communicates a recognizable brand identity.',
+  calm_confident: 'How composed and assured the design feels.',
+  bold_forward: 'How progressive and daring the design is.',
+  overall_quality: 'The overall design quality combining all factors.',
+  calm_energetic: 'Where the design sits between serene and lively. Negative = calm, positive = energetic.',
+  confident_tentative: 'Whether the design feels decisive or uncertain. Negative = bold, positive = cautious.',
+  forward_conservative: 'How modern versus traditional the design is. Negative = cutting-edge, positive = conventional.',
+  premium_accessible: 'Whether the design targets luxury or mass-market. Negative = exclusive, positive = approachable.',
+  warm_clinical: 'The emotional temperature. Negative = friendly and human, positive = precise and institutional.',
+};
+
+function generatePairNarrative(fieldA, fieldB, r, strengthStr, overlap) {
+  const labelA = FIELD_LABELS[fieldA];
+  const labelB = FIELD_LABELS[fieldB];
+  const descA = FIELD_DESCRIPTIONS[fieldA] || labelA;
+  const descB = FIELD_DESCRIPTIONS[fieldB] || labelB;
+  const absR = Math.abs(r);
+  const direction = r > 0 ? 'positive' : 'negative';
+
+  let narrative, implication;
+
+  if (absR < 0.05) {
+    narrative = `${labelA} and ${labelB} are essentially independent dimensions. Changing one has no measurable effect on the other across the screens analyzed.`;
+    implication = `You can adjust ${labelA} freely without worrying about ${labelB}.`;
+  } else if (r > 0.5) {
+    narrative = `${labelA} and ${labelB} are tightly linked — screens that excel at one almost always excel at the other. This suggests they share a common design discipline: the intentionality that drives strong ${labelA.toLowerCase()} also produces strong ${labelB.toLowerCase()}. With a correlation of ${r.toFixed(2)}, this is one of the more reliable patterns in the dataset.`;
+    implication = `Investing in ${labelA.toLowerCase()} will likely raise ${labelB.toLowerCase()} as well — they reinforce each other.`;
+  } else if (r > 0.3) {
+    narrative = `${labelA} and ${labelB} tend to move together, though not always in lockstep. Screens with higher ${labelA.toLowerCase()} frequently show stronger ${labelB.toLowerCase()}, but there is enough variation that you can push one without the other following automatically. The moderate correlation (${r.toFixed(2)}) indicates a real but flexible relationship.`;
+    implication = `Improving ${labelA.toLowerCase()} gives you a tailwind on ${labelB.toLowerCase()}, but do not count on it — address both intentionally.`;
+  } else if (r > 0.15) {
+    narrative = `There is a mild positive association between ${labelA} and ${labelB}. They nudge in the same direction, but the link is weak enough that many screens break the pattern. This is not something to design around.`;
+    implication = `Do not rely on ${labelA.toLowerCase()} to move ${labelB.toLowerCase()} — the connection is too loose to be actionable.`;
+  } else if (r > 0.05) {
+    narrative = `${labelA} and ${labelB} show a faint positive trend that barely registers in practice. Most design decisions affecting one will not meaningfully change the other.`;
+    implication = `Treat these as independent — any apparent connection is too small to guide decisions.`;
+  } else if (r > -0.15) {
+    narrative = `${labelA} and ${labelB} show a faint negative trend that barely registers in practice. The slight tension between them is not strong enough to create real tradeoffs.`;
+    implication = `Treat these as independent — the slight inverse tendency is not meaningful for design decisions.`;
+  } else if (r > -0.3) {
+    narrative = `There is a mild tension between ${labelA} and ${labelB}. Screens that push harder on one tend to score slightly lower on the other, though many designs manage both adequately. The association is real but weak.`;
+    implication = `Be aware of a slight tradeoff, but do not assume you must sacrifice ${labelB.toLowerCase()} to get ${labelA.toLowerCase()}.`;
+  } else if (r > -0.5) {
+    narrative = `${labelA} and ${labelB} pull in opposite directions with meaningful force. Designs that prioritize one tend to give ground on the other, creating a genuine tension that skilled designers must navigate. The correlation of ${r.toFixed(2)} means this tradeoff shows up consistently across industries.`;
+    implication = `Pushing ${labelA.toLowerCase()} higher will likely cost you ${labelB.toLowerCase()} — plan for the tradeoff.`;
+  } else {
+    narrative = `${labelA} and ${labelB} are in strong opposition — this is one of the hardest tradeoffs in the dataset. Screens that maximize one consistently sacrifice the other. With a correlation of ${r.toFixed(2)}, very few designs manage to score well on both simultaneously.`;
+    implication = `You cannot easily have both high ${labelA.toLowerCase()} and high ${labelB.toLowerCase()} — pick your priority.`;
+  }
+
+  if (overlap) {
+    narrative += ' Note: These dimensions share conceptual overlap in their definitions, so some of this correlation is expected rather than a design insight.';
+  }
+
+  return { narrative, design_implication: implication };
+}
+
+function clusterFields(matrix, fields, threshold = 0.55) {
+  // Agglomerative clustering using distance = 1 - |r|
+  let clusters = fields.map((f, i) => ({ members: [i], label: '' }));
+  const dist = (a, b) => {
+    // Average linkage between cluster members
+    let sum = 0, count = 0;
+    for (const i of a.members) {
+      for (const j of b.members) {
+        sum += 1 - Math.abs(matrix[i][j]);
+        count++;
+      }
+    }
+    return sum / count;
+  };
+
+  while (clusters.length > 2) {
+    let bestDist = Infinity, bestI = -1, bestJ = -1;
+    for (let i = 0; i < clusters.length; i++) {
+      for (let j = i + 1; j < clusters.length; j++) {
+        const d = dist(clusters[i], clusters[j]);
+        if (d < bestDist) { bestDist = d; bestI = i; bestJ = j; }
+      }
+    }
+    if (bestDist > threshold) break;
+    const merged = { members: [...clusters[bestI].members, ...clusters[bestJ].members], label: '' };
+    clusters = clusters.filter((_, idx) => idx !== bestI && idx !== bestJ);
+    clusters.push(merged);
+  }
+
+  // Auto-label clusters — each field maps to a descriptive label for its primary theme
+  const FIELD_THEME = {
+    overall_quality: 'Quality Fundamentals',
+    hierarchy_clarity: 'Quality Fundamentals',
+    glanceability: 'Quality Fundamentals',
+    color_restraint: 'Visual Restraint',
+    whitespace_ratio: 'Visual Restraint',
+    calm_energetic: 'Visual Restraint',
+    bold_forward: 'Design Energy',
+    density: 'Design Energy',
+    calm_confident: 'Confidence & Trust',
+    brand_confidence: 'Confidence & Trust',
+    confident_tentative: 'Confidence & Trust',
+    premium_accessible: 'Audience Positioning',
+    warm_clinical: 'Emotional Tone',
+    forward_conservative: 'Innovation Stance',
+  };
+
+  const usedLabels = new Set();
+  return clusters.map((c, id) => {
+    const memberFields = c.members.map(i => fields[i]);
+    // Pick the most common theme among members
+    const themeCounts = {};
+    for (const f of memberFields) {
+      const t = FIELD_THEME[f] || 'Mixed';
+      themeCounts[t] = (themeCounts[t] || 0) + 1;
+    }
+    let label = Object.entries(themeCounts).sort((a, b) => b[1] - a[1])[0][0];
+    // Deduplicate labels
+    if (usedLabels.has(label)) {
+      // For single-field clusters, use the field's own name
+      if (memberFields.length === 1) {
+        label = FIELD_LABELS[memberFields[0]] || label;
+      } else {
+        label = label + ' II';
+      }
+    }
+    usedLabels.add(label);
+    return { id, label, fields: memberFields };
+  });
+}
+
+function buildDriverAnalysis(matrix, fields, target) {
+  const ti = fields.indexOf(target);
+  if (ti === -1) return [];
+  return fields
+    .map((f, i) => ({ field: f, r: +matrix[ti][i].toFixed(3), absR: Math.abs(matrix[ti][i]) }))
+    .filter(d => d.field !== target)
+    .sort((a, b) => b.absR - a.absR)
+    .map(d => {
+      const dir = d.r > 0 ? 'positive' : 'negative';
+      const strength = d.absR > 0.5 ? 'strongly' : d.absR > 0.3 ? 'moderately' : 'weakly';
+      const verb = d.r > 0 ? 'rises with' : 'falls as';
+      const overlap = isSemanticOverlap(d.field, target);
+      return {
+        field: d.field,
+        r: d.r,
+        direction: dir,
+        strength: strengthLabel(d.absR),
+        semantic_overlap: overlap,
+        insight: `${FIELD_LABELS[d.field]} ${strength} ${verb} ${FIELD_LABELS[target]}.` + (overlap ? ' (shared definition — interpret with care)' : ''),
+      };
+    });
+}
+
+router.get('/api/correlations', async (req, res) => {
+  try {
+    const cacheKey = (req.query.industry || '') + '|' + (req.query.bucket || '');
+    const now = Date.now();
+    if (correlationCache.data && correlationCache.key === cacheKey && (now - correlationCache.ts) < CORRELATION_TTL) {
+      return res.json(correlationCache.data);
+    }
+
+    const filter = {};
+    if (req.query.industry) filter.industry = parseMultiFilter(req.query.industry);
+    if (req.query.bucket) {
+      const bucket = await store.getBucket(req.query.bucket);
+      if (bucket && bucket.screen_ids.length) filter.screen_id = { $in: bucket.screen_ids };
+    }
+
+    // Fetch all scores
+    const projection = { industry: 1 };
+    for (const f of FIELD_ORDER) projection[`analysis.scores.${f}`] = 1;
+    const screens = await store.db.collection('screens').find(filter).project(projection).toArray();
+
+    // Extract score vectors per field
+    const vectors = {};
+    for (const f of FIELD_ORDER) vectors[f] = [];
+    const industries = [];
+
+    for (const s of screens) {
+      const scores = s.analysis?.scores;
+      if (!scores) continue;
+      // Only include screens that have all fields
+      const allValid = FIELD_ORDER.every(f => typeof scores[f] === 'number');
+      if (!allValid) continue;
+      for (const f of FIELD_ORDER) vectors[f].push(scores[f]);
+      industries.push(s.industry);
+    }
+
+    const count = vectors[FIELD_ORDER[0]].length;
+    const n = FIELD_ORDER.length;
+
+    // Pre-compute ranks once per field (avoids 182 sorts → only 14)
+    const rankedVectors = {};
+    for (const f of FIELD_ORDER) rankedVectors[f] = rankArray(vectors[f]);
+
+    // Compute 14x14 Spearman rank correlation matrix (robust for ordinal integer scores)
+    const matrix = Array.from({ length: n }, () => Array(n).fill(0));
+    for (let i = 0; i < n; i++) {
+      matrix[i][i] = 1.0;
+      for (let j = i + 1; j < n; j++) {
+        const r = pearsonOnValues(rankedVectors[FIELD_ORDER[i]], rankedVectors[FIELD_ORDER[j]]);
+        matrix[i][j] = +r.toFixed(4);
+        matrix[j][i] = +r.toFixed(4);
+      }
+    }
+
+    // Edges: pairs with |r| > 0.15 (effect-size threshold — at n=4600 even tiny r is significant)
+    const edges = [];
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        if (Math.abs(matrix[i][j]) > 0.15) {
+          const f1 = FIELD_ORDER[i], f2 = FIELD_ORDER[j];
+          edges.push({
+            from: f1, to: f2, r: matrix[i][j],
+            strength: strengthLabel(Math.abs(matrix[i][j])),
+            semantic_overlap: isSemanticOverlap(f1, f2),
+          });
+        }
+      }
+    }
+    edges.sort((a, b) => Math.abs(b.r) - Math.abs(a.r));
+
+    // Clusters
+    const clusters = clusterFields(matrix, FIELD_ORDER);
+
+    // Driver analysis for 3 key outcomes
+    const drivers = {
+      overall_quality: buildDriverAnalysis(matrix, FIELD_ORDER, 'overall_quality'),
+      calm_confident: buildDriverAnalysis(matrix, FIELD_ORDER, 'calm_confident'),
+      bold_forward: buildDriverAnalysis(matrix, FIELD_ORDER, 'bold_forward'),
+    };
+
+    // Top 6 tradeoffs (most negatively correlated pairs)
+    const allPairs = [];
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        allPairs.push({ i, j, r: matrix[i][j] });
+      }
+    }
+    const negativePairs = allPairs.filter(p => p.r < -0.1);
+    negativePairs.sort((a, b) => a.r - b.r);
+
+    // Build industry index map in one pass, then compute means
+    const industryIndices = {};
+    for (let k = 0; k < industries.length; k++) {
+      (industryIndices[industries[k]] ??= []).push(k);
+    }
+    const industryMeans = {};
+    for (const [ind, idx] of Object.entries(industryIndices)) {
+      industryMeans[ind] = {};
+      for (const f of FIELD_ORDER) {
+        let sum = 0;
+        for (const k of idx) sum += vectors[f][k];
+        industryMeans[ind][f] = +(sum / idx.length).toFixed(2);
+      }
+    }
+    const industrySet = Object.keys(industryIndices);
+
+    const tradeoffs = negativePairs.slice(0, 6).map(p => {
+      const f1 = FIELD_ORDER[p.i], f2 = FIELD_ORDER[p.j];
+      const byIndustry = {};
+      for (const ind of industrySet) {
+        byIndustry[ind] = { x_mean: industryMeans[ind][f1], y_mean: industryMeans[ind][f2] };
+      }
+      return {
+        pair: [f1, f2],
+        r: +p.r.toFixed(4),
+        insight: `${FIELD_LABELS[f1]} and ${FIELD_LABELS[f2]} pull in opposite directions — screens that score high on one tend to score low on the other.`,
+        by_industry: byIndustry,
+      };
+    });
+
+    // Design lever cards: top 8 strongest correlations (positive and negative)
+    const sortedByStrength = [...allPairs].sort((a, b) => Math.abs(b.r) - Math.abs(a.r)).slice(0, 8);
+    const levers = sortedByStrength.map(p => {
+      const trigger = FIELD_ORDER[p.i];
+      const target = FIELD_ORDER[p.j];
+      if (p.r > 0) {
+        return {
+          trigger,
+          effect_up: [target],
+          effect_down: [],
+          summary: `Increasing ${FIELD_LABELS[trigger]} tends to raise ${FIELD_LABELS[target]}.`,
+        };
+      } else {
+        return {
+          trigger,
+          effect_up: [],
+          effect_down: [target],
+          summary: `Pushing ${FIELD_LABELS[trigger]} higher comes at the cost of ${FIELD_LABELS[target]}.`,
+        };
+      }
+    });
+
+    // Pair explanations — plain-English lookup for every unique pair
+    const pairExplanations = {};
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const f1 = FIELD_ORDER[i], f2 = FIELD_ORDER[j];
+        const r = matrix[i][j];
+        const [sortedA, sortedB] = f1 < f2 ? [f1, f2] : [f2, f1];
+        const key = `${sortedA}|${sortedB}`;
+        const absR = Math.abs(r);
+        const overlap = isSemanticOverlap(f1, f2);
+        const strength = strengthLabel(absR);
+        const direction = r > 0 ? 'positive' : (r < 0 ? 'negative' : 'neutral');
+        const { narrative, design_implication } = absR > 0.05
+          ? generatePairNarrative(sortedA, sortedB, r, strength, overlap)
+          : { narrative: `${FIELD_LABELS[sortedA]} and ${FIELD_LABELS[sortedB]} are independent dimensions. Changing one has no measurable effect on the other.`, design_implication: `These can be adjusted independently — no tradeoff or synergy to consider.` };
+
+        pairExplanations[key] = {
+          field_a: sortedA,
+          field_b: sortedB,
+          label_a: FIELD_LABELS[sortedA],
+          label_b: FIELD_LABELS[sortedB],
+          r: +r.toFixed(4),
+          strength,
+          direction,
+          semantic_overlap: overlap,
+          narrative,
+          design_implication,
+          description_a: FIELD_DESCRIPTIONS[sortedA] || '',
+          description_b: FIELD_DESCRIPTIONS[sortedB] || '',
+        };
+      }
+    }
+
+    // Global averages and standard deviations for the mixer
+    const globalAverages = {};
+    const globalStddevs = {};
+    for (const f of FIELD_ORDER) {
+      const vals = vectors[f];
+      const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+      globalAverages[f] = +mean.toFixed(2);
+      const variance = vals.reduce((a, v) => a + (v - mean) ** 2, 0) / vals.length;
+      globalStddevs[f] = +Math.sqrt(variance).toFixed(3);
+    }
+
+    const result = {
+      fields: FIELD_ORDER,
+      field_labels: FIELD_LABELS,
+      method: 'spearman',
+      count,
+      matrix,
+      global_averages: globalAverages,
+      global_stddevs: globalStddevs,
+      clusters,
+      edges,
+      drivers,
+      tradeoffs,
+      levers,
+      pair_explanations: pairExplanations,
+    };
+
+    correlationCache = { data: result, ts: now, key: cacheKey };
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Correlation Match (find screens closest to target scores) ─────────
+
+router.post('/api/correlations/match', async (req, res) => {
+  try {
+    const { targets, limit = 12, industry, bucket } = req.body || {};
+    if (!targets || typeof targets !== 'object') {
+      return res.status(400).json({ error: 'targets object required' });
+    }
+
+    const filter = {};
+    if (industry) filter.industry = parseMultiFilter(industry);
+    if (bucket) {
+      const b = await store.getBucket(bucket);
+      if (b && b.screen_ids.length) filter.screen_id = { $in: b.screen_ids };
+    }
+
+    const projection = { screen_id: 1, industry: 1, brand: 1, file_path: 1 };
+    for (const f of FIELD_ORDER) projection[`analysis.scores.${f}`] = 1;
+    const screens = await store.db.collection('screens').find(filter).project(projection).toArray();
+
+    const scored = [];
+    for (const s of screens) {
+      const sc = s.analysis?.scores;
+      if (!sc) continue;
+      let dist = 0;
+      let valid = true;
+      for (const f of FIELD_ORDER) {
+        if (typeof sc[f] !== 'number') { valid = false; break; }
+        if (targets[f] !== undefined) {
+          const range = SCORE_FIELDS[f][1] - SCORE_FIELDS[f][0];
+          const d = (sc[f] - targets[f]) / range;
+          dist += d * d;
+        }
+      }
+      if (!valid) continue;
+      scored.push({
+        screen_id: s.screen_id,
+        industry: s.industry,
+        brand: s.brand || '',
+        file_path: s.file_path,
+        image_url: screenUrl(s.industry, s.file_path),
+        distance: +Math.sqrt(dist).toFixed(4),
+      });
+    }
+
+    scored.sort((a, b) => a.distance - b.distance);
+    res.json({ screens: scored.slice(0, Math.min(limit, 24)) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -656,6 +1190,18 @@ router.post('/api/buckets/import-distillation', async (req, res) => {
     res.json({ ok: true, bucket_name: name, count: distillation.screen_ids.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Rubric ─────────────────────────────────────────────────────────────
+
+router.get('/api/rubric', async (req, res) => {
+  try {
+    const rubricPath = path.join(PATHS.config, 'rubric.md');
+    const text = await fs.readFile(rubricPath, 'utf-8');
+    res.type('text/plain').send(text);
+  } catch (err) {
+    res.status(500).json({ error: 'Rubric file not found' });
   }
 });
 

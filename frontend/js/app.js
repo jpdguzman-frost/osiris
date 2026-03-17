@@ -85,6 +85,12 @@ const api = {
   similar:      (id, p) => api.get('/api/similar/' + encodeURIComponent(id) + '?' + new URLSearchParams(p)),
   scatter:      (p) => api.get('/api/scatter?' + new URLSearchParams(p)),
   benchmark:    (p) => api.get('/api/benchmark?' + new URLSearchParams(p)),
+  correlations: (p) => api.get('/api/correlations?' + new URLSearchParams(p || {})),
+  correlationsMatch: (body) => fetch(BASE + '/api/correlations/match', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then(r => r.json()),
   brands:       (p) => api.get('/api/brands?' + new URLSearchParams(p || {})),
   buckets:      () => api.get('/api/buckets'),
   bucket:       (id, p) => api.get('/api/buckets/' + encodeURIComponent(id) + '?' + new URLSearchParams(p)),
@@ -160,6 +166,10 @@ const SCORE_LABELS = {
   brand_confidence: 'Brand Confidence',
 };
 
+var MIXER_RANGES = {};
+['overall_quality','calm_confident','bold_forward','color_restraint','hierarchy_clarity','glanceability','density','whitespace_ratio','brand_confidence'].forEach(function(f) { MIXER_RANGES[f] = [1, 10]; });
+['calm_energetic','confident_tentative','forward_conservative','premium_accessible','warm_clinical'].forEach(function(f) { MIXER_RANGES[f] = [-5, 5]; });
+
 const CORE_SCORE_FIELDS = [
   'overall_quality', 'calm_confident', 'bold_forward',
   'color_restraint', 'hierarchy_clarity', 'glanceability',
@@ -205,12 +215,15 @@ const PRESET_LABELS = {
 
 const INDUSTRY_COLORS = {
   fintech:       '#2D5BFF',
-  luxury:        '#000000',
+  luxury:        '#8B5CF6',
   aerospace:     '#6366F1',
   automotive:    '#059669',
   gaming:        '#DC2626',
   health:        '#0891B2',
-  gcash_current: '#F59E0B',
+  ecommerce:     '#F59E0B',
+  healthcare:    '#16A34A',
+  education:     '#06B6D4',
+  gcash_current: '#0070E0',
 };
 
 const AXIS_LABELS = {
@@ -296,6 +309,7 @@ function getRoute() {
   if (hash.startsWith('/bucket/')) return { view: 'bucketDetail', id: decodeURIComponent(hash.slice(8)) };
   if (hash === '/scatter' || hash.startsWith('/scatter')) return { view: 'scatter' };
   if (hash === '/benchmark' || hash.startsWith('/benchmark')) return { view: 'benchmark' };
+  if (hash === '/correlations' || hash.startsWith('/correlations')) return { view: 'correlations' };
   return { view: 'dashboard' };
 }
 
@@ -320,6 +334,7 @@ const app = new Ractive({
     bucketDetail: Ractive.parse(document.getElementById('bucket-detail-template').textContent),
     scatter: Ractive.parse(document.getElementById('scatter-template').textContent),
     benchmark: Ractive.parse(document.getElementById('benchmark-template').textContent),
+    correlations: Ractive.parse(document.getElementById('correlations-template').textContent),
   },
 
   data: function () {
@@ -438,6 +453,22 @@ const app = new Ractive({
       benchmarkEvidenceField: null,
       benchmarkEvidenceScreens: [],
       benchmarkEvidenceLoading: false,
+
+      // Correlations
+      correlationsData: null,
+      correlationsLoading: false,
+      correlationsError: false,
+      correlationsDriverTarget: 'overall_quality',
+      correlationsFilter: '',
+      correlationsIndustry: '',
+      correlationsBucket: '',
+      correlationsTab: 'mixer',
+      // Mixer
+      mixerFields: [],
+      mixerScreens: [],
+      mixerScreensLoading: false,
+      mixerDriverField: null,
+      corrHoverPair: null,
 
       // Buckets
       bucketList: [],
@@ -2011,6 +2042,422 @@ const app = new Ractive({
       console.error('Scatter bucket overlay error:', err);
     }
   },
+
+  // ─── Correlations ───────────────────────────────────────────────────────────
+
+  onCorrelationsFilterChange: function () {
+    var val = this.get('correlationsFilter') || '';
+    if (val.startsWith('industry:')) {
+      this.set({ correlationsIndustry: val.slice(9), correlationsBucket: '' });
+    } else if (val.startsWith('bucket:')) {
+      this.set({ correlationsIndustry: '', correlationsBucket: val.slice(7) });
+    } else {
+      this.set({ correlationsIndustry: '', correlationsBucket: '' });
+    }
+    this.loadCorrelations();
+  },
+
+  loadCorrelations: async function () {
+    this.set({ correlationsLoading: true, correlationsError: false });
+    try {
+      var params = {};
+      var industry = this.get('correlationsIndustry');
+      var bucket = this.get('correlationsBucket');
+      if (industry) params.industry = industry;
+      if (bucket) params.bucket = bucket;
+      const data = await api.correlations(params);
+      this.set({ correlationsData: data, correlationsLoading: false });
+      const self = this;
+      // Init mixer immediately (doesn't need canvas)
+      self._initMixer(data);
+      // Render heatmap only if matrix tab is active
+      if (self.get('correlationsTab') === 'matrix') {
+        setTimeout(() => waitForElements(['corr-heatmap'], () => {
+          self._renderCorrelations(data);
+        }), 0);
+      }
+    } catch (err) {
+      console.error('Correlations load error:', err);
+      this.set({ correlationsLoading: false, correlationsError: true });
+    }
+  },
+
+  _renderCorrelations: function (data) {
+    this._renderHeatmap(data);
+    this._renderDriverChart(data);
+    this._renderTradeoffCharts(data);
+  },
+
+  _renderHeatmap: function (data) {
+    const canvas = document.getElementById('corr-heatmap');
+    if (!canvas) return;
+    const fields = data.fields;
+    const n = fields.length;
+
+    // Size to fit within 80vh so the explanation panel stays visible
+    var maxH = Math.floor(window.innerHeight * 0.75);
+    var leftLabelW = 160;
+    var topLabelH = 150; // room for 90° rotated labels
+    var cellSize = Math.max(28, Math.floor((maxH - topLabelH) / n));
+    var totalW = leftLabelW + n * cellSize;
+    var totalH = topLabelH + n * cellSize;
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = totalW * dpr;
+    canvas.height = totalH * dpr;
+    canvas.style.width = totalW + 'px';
+    canvas.style.height = totalH + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    // Color scale: blue (#2D5BFF) at +1, white at 0, red (#DC2626) at -1
+    function corrColor(r) {
+      if (r >= 0) {
+        const t = Math.min(r, 1);
+        return 'rgb(' + Math.round(255 - 210 * t) + ',' + Math.round(255 - 164 * t) + ',255)';
+      } else {
+        const t = Math.min(-r, 1);
+        return 'rgb(' + Math.round(255 - 35 * t) + ',' + Math.round(255 - 217 * t) + ',' + Math.round(255 - 217 * t) + ')';
+      }
+    }
+
+    // Reusable draw function — hoverRow/hoverCol highlight the active cell + its mirror
+    function drawMatrix(hoverRow, hoverCol) {
+      ctx.clearRect(0, 0, totalW, totalH);
+      var hasHover = hoverRow >= 0 && hoverCol >= 0;
+
+      // Draw cells
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          const r = data.matrix[i][j];
+          const x = leftLabelW + j * cellSize;
+          const y = topLabelH + i * cellSize;
+
+          // Is this the hovered cell or its mirror?
+          var isActive = hasHover && ((i === hoverRow && j === hoverCol) || (i === hoverCol && j === hoverRow));
+
+          if (isActive) {
+            // Keep correlation color, just make it stand out
+            ctx.fillStyle = corrColor(r);
+            ctx.fillRect(x, y, cellSize - 1, cellSize - 1);
+            ctx.fillStyle = Math.abs(r) > 0.5 ? '#fff' : '#1A1A1A';
+            ctx.font = '700 11px Google Sans, sans-serif';
+          } else if (hasHover) {
+            // Fade all other cells to grayscale
+            var gray = Math.round(220 + (255 - 220) * (1 - Math.abs(r)));
+            ctx.fillStyle = 'rgb(' + gray + ',' + gray + ',' + gray + ')';
+            ctx.fillRect(x, y, cellSize - 1, cellSize - 1);
+            ctx.fillStyle = '#bbb';
+            ctx.font = '500 11px Google Sans, sans-serif';
+          } else {
+            // Normal — no hover
+            ctx.fillStyle = corrColor(r);
+            ctx.fillRect(x, y, cellSize - 1, cellSize - 1);
+            ctx.fillStyle = Math.abs(r) > 0.5 ? '#fff' : '#333';
+            ctx.font = '500 11px Google Sans, sans-serif';
+          }
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(r.toFixed(2), x + cellSize / 2, y + cellSize / 2);
+        }
+      }
+
+      // Draw labels on top — 90° vertical
+      for (let j = 0; j < n; j++) {
+        var isHighlighted = hasHover && (j === hoverCol || j === hoverRow);
+        var isFaded = hasHover && !isHighlighted;
+        ctx.fillStyle = isHighlighted ? '#0F1B3D' : (isFaded ? '#ccc' : '#1A1A1A');
+        ctx.font = (isHighlighted ? '700' : '500') + ' 12px Google Sans, sans-serif';
+        const x = leftLabelW + j * cellSize + cellSize / 2;
+        const y = topLabelH - 10;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(-Math.PI / 2);
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(formatFieldName(fields[j]), 0, 0);
+        ctx.restore();
+      }
+
+      // Draw labels on left
+      for (let i = 0; i < n; i++) {
+        var isHighlighted = hasHover && (i === hoverRow || i === hoverCol);
+        var isFaded = hasHover && !isHighlighted;
+        ctx.fillStyle = isHighlighted ? '#0F1B3D' : (isFaded ? '#ccc' : '#1A1A1A');
+        ctx.font = (isHighlighted ? '700' : '500') + ' 12px Google Sans, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        const x = leftLabelW - 10;
+        const y = topLabelH + i * cellSize + cellSize / 2;
+        ctx.fillText(formatFieldName(fields[i]), x, y);
+      }
+    }
+
+    // Initial draw with no highlight
+    drawMatrix(-1, -1);
+
+    // Store dimensions for hit testing
+    var labelMargin = leftLabelW;
+    var labelMarginTop = topLabelH;
+
+    // Remove prior handlers before adding new ones (prevents stacking on re-render)
+    if (canvas._corrClickHandler) canvas.removeEventListener('click', canvas._corrClickHandler);
+    if (canvas._corrMoveHandler) canvas.removeEventListener('mousemove', canvas._corrMoveHandler);
+
+    // Click handler — navigate to scatter with selected pair
+    canvas._corrClickHandler = function (e) {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const col = Math.floor((mx - labelMargin) / cellSize);
+      const row = Math.floor((my - labelMarginTop) / cellSize);
+      if (col >= 0 && col < n && row >= 0 && row < n && col !== row) {
+        app.set({ scatterX: fields[col], scatterY: fields[row] });
+        app.navigate('/scatter');
+      }
+    };
+    canvas.addEventListener('click', canvas._corrClickHandler);
+
+    // Hover cursor + explanation panel + highlight
+    var lastHoverKey = null;
+    var lastHoverRow = -1, lastHoverCol = -1;
+    canvas._corrMoveHandler = function (e) {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const col = Math.floor((mx - labelMargin) / cellSize);
+      const row = Math.floor((my - labelMarginTop) / cellSize);
+      const valid = col >= 0 && col < n && row >= 0 && row < n && col !== row;
+      canvas.style.cursor = valid ? 'pointer' : 'default';
+
+      // Redraw with highlight when hovered cell changes
+      if (valid) {
+        if (row !== lastHoverRow || col !== lastHoverCol) {
+          lastHoverRow = row; lastHoverCol = col;
+          drawMatrix(row, col);
+        }
+        var f1 = fields[col], f2 = fields[row];
+        var key = f1 < f2 ? f1 + '|' + f2 : f2 + '|' + f1;
+        if (key !== lastHoverKey) {
+          lastHoverKey = key;
+          var explanation = data.pair_explanations ? data.pair_explanations[key] : null;
+          app.set('corrHoverPair', explanation || null);
+        }
+      } else {
+        if (lastHoverRow !== -1 || lastHoverCol !== -1) {
+          lastHoverRow = -1; lastHoverCol = -1;
+          drawMatrix(-1, -1);
+        }
+        if (lastHoverKey !== null) {
+          lastHoverKey = null;
+          app.set('corrHoverPair', null);
+        }
+      }
+    };
+    canvas.addEventListener('mousemove', canvas._corrMoveHandler);
+  },
+
+  _renderDriverChart: function (data) {
+    const target = this.get('correlationsDriverTarget') || 'overall_quality';
+    const drivers = data.drivers[target];
+    if (!drivers) return;
+    const canvas = document.getElementById('corr-driver-chart');
+    if (!canvas) return;
+
+    if (this._driverChart) this._driverChart.destroy();
+
+    this._driverChart = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: drivers.map(d => formatFieldName(d.field)),
+        datasets: [{
+          data: drivers.map(d => d.r),
+          backgroundColor: drivers.map(d => d.r >= 0 ? 'rgba(45, 91, 255, 0.7)' : 'rgba(220, 38, 38, 0.7)'),
+          borderColor: drivers.map(d => d.r >= 0 ? '#2D5BFF' : '#DC2626'),
+          borderWidth: 1,
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              afterLabel: function (ctx) {
+                return drivers[ctx.dataIndex].insight;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            min: -1, max: 1,
+            title: { display: true, text: 'Correlation (r)', font: { family: 'Google Sans', size: 12 } },
+            grid: { color: '#EEEEEF' },
+          },
+          y: {
+            grid: { display: false },
+            ticks: { font: { family: 'Google Sans', size: 12 } },
+          }
+        },
+      },
+    });
+  },
+
+  _renderTradeoffCharts: function (data) {
+    if (this._tradeoffCharts) {
+      this._tradeoffCharts.forEach(c => c.destroy());
+    }
+    this._tradeoffCharts = [];
+
+    data.tradeoffs.forEach((t, idx) => {
+      const canvas = document.getElementById('corr-tradeoff-' + idx);
+      if (!canvas) return;
+
+      const datasets = [];
+      const industries = Object.keys(t.by_industry);
+      industries.forEach(ind => {
+        const d = t.by_industry[ind];
+        datasets.push({
+          label: ind.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+          data: [{ x: d.x_mean, y: d.y_mean }],
+          backgroundColor: INDUSTRY_COLORS[ind] || '#93939E',
+          pointRadius: 8,
+          pointHoverRadius: 10,
+        });
+      });
+
+      const chart = new Chart(canvas, {
+        type: 'scatter',
+        data: { datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: true, position: 'bottom', labels: { boxWidth: 8, usePointStyle: true, font: { size: 10, family: 'Google Sans' } } },
+          },
+          scales: {
+            x: {
+              title: { display: true, text: formatFieldName(t.pair[0]), font: { family: 'Google Sans', size: 11 } },
+              grid: { color: '#EEEEEF' },
+            },
+            y: {
+              title: { display: true, text: formatFieldName(t.pair[1]), font: { family: 'Google Sans', size: 11 } },
+              grid: { color: '#EEEEEF' },
+            },
+          },
+        },
+      });
+      this._tradeoffCharts.push(chart);
+    });
+  },
+
+  switchDriverTarget: function (target) {
+    this.set('correlationsDriverTarget', target);
+    var data = this.get('correlationsData');
+    if (data) this._renderDriverChart(data);
+  },
+
+  switchCorrelationsTab: function (tab) {
+    this.set('correlationsTab', tab);
+    if (tab === 'matrix') {
+      var data = this.get('correlationsData');
+      if (data) {
+        var self = this;
+        setTimeout(function () { waitForElements(['corr-heatmap'], function () { self._renderHeatmap(data); }); }, 0);
+      }
+    }
+  },
+
+  _initMixer: function (data) {
+    var fields = data.fields.map(function (f) {
+      var range = MIXER_RANGES[f] || [1, 10];
+      return {
+        field: f,
+        label: data.field_labels[f],
+        value: data.global_averages[f],
+        defaultValue: data.global_averages[f],
+        min: range[0],
+        max: range[1],
+        isDriver: false,
+      };
+    });
+    this.set('mixerFields', fields);
+    this._loadMixerScreens();
+  },
+
+  onMixerDrag: function (driverField, rawValue) {
+    var value = parseFloat(rawValue);
+    if (isNaN(value)) return;
+    var data = this.get('correlationsData');
+    if (!data) return;
+    var driverIdx = data.fields.indexOf(driverField);
+    var avgDriver = data.global_averages[driverField];
+    var delta = value - avgDriver;
+    var fields = this.get('mixerFields');
+
+    for (var i = 0; i < fields.length; i++) {
+      var f = fields[i];
+      if (f.field === driverField) {
+        this.set('mixerFields.' + i + '.value', value);
+        this.set('mixerFields.' + i + '.isDriver', true);
+      } else {
+        var targetIdx = data.fields.indexOf(f.field);
+        var r = data.matrix[driverIdx][targetIdx];
+        var predicted = data.global_averages[f.field] + r * delta;
+        predicted = Math.max(f.min, Math.min(f.max, +predicted.toFixed(1)));
+        this.set('mixerFields.' + i + '.value', predicted);
+        this.set('mixerFields.' + i + '.isDriver', false);
+      }
+    }
+    this.set('mixerDriverField', driverField);
+    this._debouncedLoadMixerScreens();
+  },
+
+  resetMixer: function () {
+    var data = this.get('correlationsData');
+    if (!data) return;
+    var fields = this.get('mixerFields');
+    for (var i = 0; i < fields.length; i++) {
+      this.set('mixerFields.' + i + '.value', fields[i].defaultValue);
+      this.set('mixerFields.' + i + '.isDriver', false);
+    }
+    this.set('mixerDriverField', null);
+    this._loadMixerScreens();
+  },
+
+  _debouncedLoadMixerScreens: function () {
+    clearTimeout(this._mixerDebounce);
+    var self = this;
+    this._mixerDebounce = setTimeout(function () { self._loadMixerScreens(); }, 300);
+  },
+
+  _loadMixerScreens: async function () {
+    var fields = this.get('mixerFields');
+    if (!fields || !fields.length) return;
+
+    var targets = {};
+    for (var i = 0; i < fields.length; i++) {
+      targets[fields[i].field] = fields[i].value;
+    }
+
+    this.set('mixerScreensLoading', true);
+    try {
+      var industry = this.get('correlationsIndustry');
+      var bucket = this.get('correlationsBucket');
+      var body = { targets: targets, limit: 16 };
+      if (industry) body.industry = industry;
+      if (bucket) body.bucket = bucket;
+      var result = await api.correlationsMatch(body);
+      this.set({ mixerScreens: result.screens || [], mixerScreensLoading: false });
+    } catch (err) {
+      console.error('Mixer screen match error:', err);
+      this.set({ mixerScreens: [], mixerScreensLoading: false });
+    }
+  },
 });
 
 // ─── Route Handling ──────────────────────────────────────────────────────────
@@ -2056,31 +2503,50 @@ function handleRoute() {
     app.set('bucketPage', 1);
     app.loadBucketDetail(route.id);
   }
-  if (route.view === 'benchmark') {
-    // Ensure industries, brands, and buckets are loaded (shared with other views)
+  // Shared data loaders — called by views that need industry/bucket lists
+  function ensureIndustriesLoaded() {
     if (!app.get('industries').length) {
       api.industries().then(data => {
         app.set('industries', data.industries.filter(i => i.count > 0).sort((a, b) => b.count - a.count));
       }).catch(() => {});
     }
+  }
+  function ensureBucketsLoaded() {
     if (!app.get('bucketList').length) {
       api.buckets().then(data => {
         app.set('bucketList', data.buckets || []);
       }).catch(() => {});
     }
   }
+
+  if (route.view === 'benchmark') {
+    ensureIndustriesLoaded();
+    ensureBucketsLoaded();
+  }
+  // Clean up correlations charts when leaving
+  if (prevView === 'correlations' && route.view !== 'correlations') {
+    if (app._driverChart) { app._driverChart.destroy(); app._driverChart = null; }
+    if (app._tradeoffCharts) { app._tradeoffCharts.forEach(c => c.destroy()); app._tradeoffCharts = null; }
+    var heatmapCanvas = document.getElementById('corr-heatmap');
+    if (heatmapCanvas) {
+      heatmapCanvas.removeEventListener('click', heatmapCanvas._corrClickHandler);
+      heatmapCanvas.removeEventListener('mousemove', heatmapCanvas._corrMoveHandler);
+    }
+    app.set({ mixerFields: [], mixerScreens: [], mixerDriverField: null });
+    clearTimeout(app._mixerDebounce);
+  }
+
+  if (route.view === 'correlations') {
+    if (prevView !== 'correlations') {
+      ensureIndustriesLoaded();
+      ensureBucketsLoaded();
+      app.loadCorrelations();
+    }
+  }
+
   if (route.view === 'scatter') {
-    // Ensure industries are available for the filter dropdown
-    if (!app.get('industries').length) {
-      api.industries().then(data => {
-        const industries = data.industries.filter(i => i.count > 0).sort((a, b) => b.count - a.count);
-        app.set('industries', industries);
-      });
-    }
-    // Preload bucket list for overlay dropdown
-    if (!app.get('bucketList').length) {
-      api.buckets().then(data => app.set('bucketList', data.buckets)).catch(() => {});
-    }
+    ensureIndustriesLoaded();
+    ensureBucketsLoaded();
     if (prevView !== 'scatter') {
       app.loadScatter();
     }
