@@ -7,6 +7,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { Store } from './src/store.js';
 import { PATHS, CLAUDE_MODEL, SCORE_FIELDS as SCORE_FIELD_LISTS, brandDisplayName } from './src/utils.js';
 import { findSimilar, WEIGHT_PRESETS } from './src/similarity.js';
+import { validateSOM, prepareSOM, scaleSOM } from './src/som.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -148,6 +149,58 @@ router.get('/api/screens', async (req, res) => {
         totalPages: result.totalPages,
       },
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Screen SOM (Structural Object Model) ─────────────────────────────
+// NOTE: SOM routes must come BEFORE /api/screens/:id to avoid :id matching "apple_22/som"
+
+router.get('/api/screens/:id/som', async (req, res) => {
+  try {
+    const screen = await store.getScreen(req.params.id);
+    if (!screen) return res.status(404).json({ error: 'Screen not found' });
+    if (!screen.som) return res.status(404).json({ error: 'No SOM generated for this screen yet' });
+
+    // Validate scaling params
+    const hasWidth = req.query.target_width !== undefined;
+    const hasHeight = req.query.target_height !== undefined;
+    if (hasWidth !== hasHeight) {
+      return res.status(400).json({ error: 'Both target_width and target_height are required for scaling' });
+    }
+    if (hasWidth) {
+      const tw = parseInt(req.query.target_width, 10);
+      const th = parseInt(req.query.target_height, 10);
+      if (isNaN(tw) || isNaN(th) || tw <= 0 || th <= 0) {
+        return res.status(400).json({ error: 'target_width and target_height must be positive integers' });
+      }
+      return res.json(scaleSOM(screen.som, tw, th));
+    }
+
+    res.json(screen.som);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/api/screens/:id/som', async (req, res) => {
+  try {
+    const screen = await store.getScreen(req.params.id);
+    if (!screen) return res.status(404).json({ error: 'Screen not found' });
+
+    const som = req.body;
+    if (!som || !som.root) return res.status(400).json({ error: 'Request body must be a SOM with a root node' });
+
+    const validation = validateSOM(som);
+    if (!validation.valid) {
+      return res.status(400).json({ error: 'Invalid SOM', details: validation.errors });
+    }
+
+    const cleaned = prepareSOM(som);
+    await store.updateSOM(req.params.id, cleaned);
+
+    res.json({ ok: true, screen_id: req.params.id });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
