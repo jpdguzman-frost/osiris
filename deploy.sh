@@ -9,8 +9,8 @@ DEST_USER="root"
 DEST_HOST="178.128.127.92"
 DEST_PORT="22443"
 DEST_DIR="/mnt/volume_sgp1_01/aux/osiris"
-SSH_KEY="~/.ssh/id_ed25519"
-SSH_CMD="ssh -i ${SSH_KEY} -p ${DEST_PORT} ${DEST_USER}@${DEST_HOST}"
+SSH_KEY="~/.ssh/id_rsa"
+SSH_CMD="ssh -q -i ${SSH_KEY} -p ${DEST_PORT} ${DEST_USER}@${DEST_HOST}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -30,8 +30,9 @@ ${SSH_CMD} "mkdir -p ${DEST_DIR}/data/screens"
 
 echo -e "${YELLOW}📦 Syncing app code to server...${NC}"
 rsync -avz --progress \
-  -e "ssh -i ${SSH_KEY} -p ${DEST_PORT}" \
+  -e "ssh -q -i ${SSH_KEY} -p ${DEST_PORT}" \
   --include='server.js' \
+  --include='guide.html' \
   --include='package.json' \
   --include='package-lock.json' \
   --include='src/' \
@@ -45,7 +46,7 @@ rsync -avz --progress \
   --exclude='config/.env' \
   --exclude='node_modules' \
   --exclude='*' \
-  ${SRC_DIR}/ ${DEST_USER}@${DEST_HOST}:${DEST_DIR}/
+  "${SRC_DIR}/" ${DEST_USER}@${DEST_HOST}:${DEST_DIR}/
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✅ App code synced successfully${NC}"
@@ -62,8 +63,8 @@ read -p "$(echo -e ${YELLOW}"📸 Sync screen data (data/screens/)? This can be 
 if [[ "$SYNC_SCREENS" =~ ^[Yy]$ ]]; then
     echo -e "${YELLOW}📸 Syncing screen data...${NC}"
     rsync -avz --progress \
-      -e "ssh -i ${SSH_KEY} -p ${DEST_PORT}" \
-      ${SRC_DIR}/data/screens/ ${DEST_USER}@${DEST_HOST}:${DEST_DIR}/data/screens/
+      -e "ssh -q -i ${SSH_KEY} -p ${DEST_PORT}" \
+      "${SRC_DIR}/data/screens/" ${DEST_USER}@${DEST_HOST}:${DEST_DIR}/data/screens/
 
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✅ Screen data synced successfully${NC}"
@@ -84,8 +85,8 @@ if [[ "$SYNC_ANALYSIS" =~ ^[Yy]$ ]]; then
     echo -e "${YELLOW}📊 Syncing analysis data...${NC}"
     ${SSH_CMD} "mkdir -p ${DEST_DIR}/data/analysis"
     rsync -avz --progress \
-      -e "ssh -i ${SSH_KEY} -p ${DEST_PORT}" \
-      ${SRC_DIR}/data/analysis/ ${DEST_USER}@${DEST_HOST}:${DEST_DIR}/data/analysis/
+      -e "ssh -q -i ${SSH_KEY} -p ${DEST_PORT}" \
+      "${SRC_DIR}/data/analysis/" ${DEST_USER}@${DEST_HOST}:${DEST_DIR}/data/analysis/
 
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✅ Analysis data synced successfully${NC}"
