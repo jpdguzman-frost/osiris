@@ -46,8 +46,7 @@ export function setupAuth(router, basePath) {
   passport.use(new GoogleStrategy.Strategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: `${basePath}/auth/google/callback`,
-    proxy: true,
+    callbackURL: process.env.GOOGLE_CALLBACK_URL || `${basePath}/auth/google/callback`,
   }, (accessToken, refreshToken, profile, done) => {
     const email = profile.emails?.[0]?.value;
     if (!email?.endsWith(`@${ALLOWED_DOMAIN}`)) {
