@@ -23,7 +23,11 @@ const router = express.Router();
 const store = new Store();
 
 // Helper to build image URLs with base path
-const screenUrl = (industry, filePath) => `${BASE_PATH}/screens/${industry}/${filePath}`;
+const screenUrl = (industry, filePath) => {
+  // Derive screen_id from filePath (e.g. "fuse_08.png" → "fuse_08")
+  const screenId = filePath ? filePath.replace(/\.[^.]+$/, '') : '';
+  return `${BASE_PATH}/api/screens/${screenId}/image`;
+};
 
 // Parse comma-separated query param into MongoDB filter value
 const parseMultiFilter = (val) => {
