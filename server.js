@@ -295,6 +295,18 @@ router.get('/api/screens/:id', async (req, res) => {
   }
 });
 
+router.get('/api/screens/:id/image', async (req, res) => {
+  try {
+    const screen = await store.getScreen(req.params.id);
+    if (!screen) return res.status(404).json({ error: 'Screen not found' });
+    const filePath = path.join(PATHS.screens, screen.industry, screen.file_path);
+    if (!await fs.pathExists(filePath)) return res.status(404).json({ error: 'Image file not found' });
+    res.sendFile(filePath);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── API: Similar Screens ───────────────────────────────────────────────────
 
 router.get('/api/similar/:screenId', async (req, res) => {
