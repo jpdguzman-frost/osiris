@@ -107,7 +107,7 @@ server.tool(
   'Get top screens from a bucket, sorted by quality. Returns scores, fingerprints, verdicts, and image URLs for design reference.',
   {
     bucket_id: z.string().describe('Bucket ID'),
-    limit: z.number().min(1).max(48).default(12).describe('Number of screens to return (default 12)'),
+    limit: z.coerce.number().min(1).max(48).default(12).describe('Number of screens to return (default 12)'),
     sort: z.string().default('overall_quality').describe('Score field to sort by (default: overall_quality)'),
   },
   async ({ bucket_id, limit, sort }) => {
@@ -164,8 +164,8 @@ server.tool(
   'Get the cached Screen Object Model (SOM) for a screen — a recursive node tree decomposition with element hierarchy, sizes, spacing, colors, typography, and layout that maps directly to Figma/Rex build instructions. Returns 404 if no SOM has been generated yet. Optionally scales to target dimensions.',
   {
     screen_id: z.string().describe('Screen ID (from bucket screens or search results)'),
-    target_width: z.number().optional().describe('Target artboard width in pixels for scaling'),
-    target_height: z.number().optional().describe('Target artboard height in pixels for scaling'),
+    target_width: z.coerce.number().optional().describe('Target artboard width in pixels for scaling'),
+    target_height: z.coerce.number().optional().describe('Target artboard height in pixels for scaling'),
   },
   async ({ screen_id, target_width, target_height }) => {
     const params = {};
@@ -347,7 +347,7 @@ server.tool(
   {
     screen_id: z.string().describe('Screen ID to find similar screens for'),
     preset: z.enum(['default', 'visual', 'semantic', 'score']).default('default').describe('Similarity weight preset'),
-    limit: z.number().min(1).max(50).default(12).describe('Number of results'),
+    limit: z.coerce.number().min(1).max(50).default(12).describe('Number of results'),
   },
   async ({ screen_id, preset, limit }) => {
     const data = await apiGet(`/api/similar/${screen_id}`, { preset, top: limit });
@@ -380,9 +380,9 @@ server.tool(
     layout: z.string().optional().describe('Filter by layout type (e.g. card_grid, dashboard, hero_detail)'),
     brand: z.string().optional().describe('Filter by brand slug (e.g., coinbase, cheval-blanc, nubank). Derived from filename convention brand-name_01.png'),
     tags: z.string().optional().describe('Comma-separated style tags (e.g. minimal,clean,premium)'),
-    min_score: z.number().optional().describe('Minimum score for the sort field'),
+    min_score: z.coerce.number().optional().describe('Minimum score for the sort field'),
     sort: z.string().default('overall_quality').describe('Score field to sort by'),
-    limit: z.number().min(1).max(48).default(12).describe('Number of results'),
+    limit: z.coerce.number().min(1).max(48).default(12).describe('Number of results'),
   },
   async ({ industry, screen_type, mood, layout, brand, tags, min_score, sort, limit }) => {
     const data = await apiGet('/api/screens', {
