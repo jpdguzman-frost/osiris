@@ -306,5 +306,12 @@ export function mergeSOM(contentSOM, styleSOM, mapping = 'auto', options = {}) {
     review_items: reviewItems,
   };
 
+  // 8. Sanitize — ensure every node has size (required by Rex create_node)
+  walkTree(merged_som.root, (node) => {
+    if (!node.size) node.size = { width: 356, height: 40 };
+    if (typeof node.size.width !== 'number') node.size.width = 356;
+    if (typeof node.size.height !== 'number') node.size.height = 40;
+  });
+
   return { merged_som, report };
 }
