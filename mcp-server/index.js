@@ -160,6 +160,21 @@ server.tool(
 );
 
 server.tool(
+  'osiris_get_screen_image',
+  'Get a screen screenshot as an image. Returns the actual PNG for visual reference, bypassing any auth redirects.',
+  { screen_id: z.string().describe('Screen ID') },
+  async ({ screen_id }) => {
+    const url = `${API_BASE}/api/screens/${screen_id}/image`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Image fetch failed: ${res.status}`);
+    const buffer = await res.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString('base64');
+    const mimeType = res.headers.get('content-type') || 'image/png';
+    return { content: [{ type: 'image', data: base64, mimeType }] };
+  }
+);
+
+server.tool(
   'osiris_get_screen_som',
   'Get the cached Screen Object Model (SOM) for a screen — a recursive node tree decomposition with element hierarchy, sizes, spacing, colors, typography, and layout that maps directly to Figma/Rex build instructions. Returns 404 if no SOM has been generated yet. Optionally scales to target dimensions.',
   {
@@ -260,6 +275,12 @@ server.tool(
         avg_quality: stats.avg_quality ?? null,
         avg_calm_confident: stats.avg_calm ?? null,
         avg_bold_forward: stats.avg_bold ?? null,
+        avg_color_restraint: stats.avg_color_restraint ?? null,
+        avg_hierarchy_clarity: stats.avg_hierarchy_clarity ?? null,
+        avg_glanceability: stats.avg_glanceability ?? null,
+        avg_density: stats.avg_density ?? null,
+        avg_whitespace_ratio: stats.avg_whitespace_ratio ?? null,
+        avg_brand_confidence: stats.avg_brand_confidence ?? null,
         screen_count: stats.screen_count ?? null,
         top_mood: stats.top_mood ?? null,
         industries: stats.industries ?? null,
@@ -294,6 +315,12 @@ server.tool(
       avg_quality: z.number().nullable(),
       avg_calm_confident: z.number().nullable(),
       avg_bold_forward: z.number().nullable(),
+      avg_color_restraint: z.number().nullable().optional(),
+      avg_hierarchy_clarity: z.number().nullable().optional(),
+      avg_glanceability: z.number().nullable().optional(),
+      avg_density: z.number().nullable().optional(),
+      avg_whitespace_ratio: z.number().nullable().optional(),
+      avg_brand_confidence: z.number().nullable().optional(),
     }).describe('Benchmark scores from osiris_get_bucket_benchmarks'),
   },
   async ({ design_scores, benchmark_scores }) => {
@@ -304,6 +331,12 @@ server.tool(
       ['overall_quality', benchmark_scores.avg_quality, 'Overall Quality'],
       ['calm_confident', benchmark_scores.avg_calm_confident, 'Calm & Confident'],
       ['bold_forward', benchmark_scores.avg_bold_forward, 'Bold & Forward'],
+      ['color_restraint', benchmark_scores.avg_color_restraint, 'Color Restraint'],
+      ['hierarchy_clarity', benchmark_scores.avg_hierarchy_clarity, 'Hierarchy Clarity'],
+      ['glanceability', benchmark_scores.avg_glanceability, 'Glanceability'],
+      ['density', benchmark_scores.avg_density, 'Density'],
+      ['whitespace_ratio', benchmark_scores.avg_whitespace_ratio, 'Whitespace Ratio'],
+      ['brand_confidence', benchmark_scores.avg_brand_confidence, 'Brand Confidence'],
     ];
 
     for (const [key, benchmark, label] of pairs) {
@@ -315,21 +348,12 @@ server.tool(
       if (status === 'BELOW') gaps.push({ metric: label, gap: Math.abs(delta) });
     }
 
-    // Include extra scores for reference
-    const extraScores = {};
-    for (const [key, val] of Object.entries(design_scores)) {
-      if (!['overall_quality', 'calm_confident', 'bold_forward'].includes(key) && val !== undefined) {
-        extraScores[key] = val;
-      }
-    }
-
     const needs_iteration = gaps.length > 0;
 
     return textResult({
       scorecard: comparisons,
-      gaps: gaps.length > 0 ? gaps : 'All core metrics meet benchmarks.',
+      gaps: gaps.length > 0 ? gaps : 'All metrics meet benchmarks.',
       needs_iteration,
-      extra_scores: Object.keys(extraScores).length > 0 ? extraScores : undefined,
       recommendation: needs_iteration
         ? `Focus on: ${gaps.map(g => `${g.metric} (${g.gap}pt below)`).join(', ')}. Iterate on these areas and re-evaluate.`
         : 'Design meets or exceeds all benchmarks. Ready for review.',
@@ -372,8 +396,9 @@ server.tool(
 
 server.tool(
   'osiris_search_screens',
-  'Search and filter screens across the full Osiris database by industry, screen type, mood, layout, tags, score range, and sorting.',
+  'Search and filter screens across the full Osiris database by industry, screen type, mood, layout, tags, score range, free-text search, and sorting.',
   {
+    q: z.string().optional().describe('Free-text search across screen verdicts (e.g. "payment input", "dark mode dashboard")'),
     industry: z.string().optional().describe('Filter by industry (e.g. fintech, luxury, automotive)'),
     screen_type: z.string().optional().describe('Filter by screen type (e.g. dashboard, onboarding, home)'),
     mood: z.string().optional().describe('Filter by design mood (e.g. calm, premium, energetic)'),
@@ -384,9 +409,9 @@ server.tool(
     sort: z.string().default('overall_quality').describe('Score field to sort by'),
     limit: z.coerce.number().min(1).max(48).default(12).describe('Number of results'),
   },
-  async ({ industry, screen_type, mood, layout, brand, tags, min_score, sort, limit }) => {
+  async ({ q, industry, screen_type, mood, layout, brand, tags, min_score, sort, limit }) => {
     const data = await apiGet('/api/screens', {
-      industry, screen_type, mood, layout, brand, tags, min_score,
+      q, industry, screen_type, mood, layout, brand, tags, min_score,
       sort, order: 'desc', limit, page: 1,
     });
     const screens = (data.screens || []).map(s => ({

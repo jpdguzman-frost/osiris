@@ -1126,7 +1126,7 @@ const app = new Ractive({
   openClusterModal: function (bubble, xLabel, yLabel) {
     const screens = bubble.screens.map(s => ({
       ...s,
-      image_url: BASE + '/screens/' + s.industry + '/' + s.file_path,
+      image_url: BASE + '/api/screens/' + s.screen_id + '/image',
       industryLabel: INDUSTRY_LABELS[s.industry] || s.industry,
     })).sort((a, b) => b.quality - a.quality);
 

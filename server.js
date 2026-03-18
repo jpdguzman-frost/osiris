@@ -132,6 +132,7 @@ router.get('/api/screens', async (req, res) => {
     if (req.query.mood) filter['fingerprint.design_mood'] = req.query.mood;
     if (req.query.layout) filter['fingerprint.layout_type'] = req.query.layout;
     if (req.query.tags) filter['fingerprint.style_tags'] = { $in: req.query.tags.split(',') };
+    if (req.query.q) filter.$text = { $search: req.query.q };
     const scoreKey = `analysis.scores.${sortField}`;
     if (req.query.min_score || req.query.max_score) {
       filter[scoreKey] = {};
@@ -1151,7 +1152,7 @@ router.post('/api/buckets/:id/generate-metadata', async (req, res) => {
       .toArray();
 
     // Compute stats from screen data
-    const scoreFields = ['overall_quality', 'calm_confident', 'bold_forward', 'color_restraint', 'hierarchy_clarity', 'glanceability', 'brand_confidence'];
+    const scoreFields = SCORE_FIELD_LISTS.core;
     const avgScores = {};
     for (const field of scoreFields) {
       const vals = screens.map(s => s.analysis?.scores?.[field]).filter(v => typeof v === 'number');
@@ -1230,9 +1231,17 @@ Screens:\n${summaries}\n\nRespond ONLY with valid JSON, no markdown fences.`
         industry_count: industryCount,
         top_industry: topIndustry,
         top_mood: topMood,
+        // Legacy 3-field names (kept for backward compat)
         avg_quality: avgScores.overall_quality,
         avg_calm: avgScores.calm_confident,
         avg_bold: avgScores.bold_forward,
+        // All 9 core metrics
+        avg_color_restraint: avgScores.color_restraint,
+        avg_hierarchy_clarity: avgScores.hierarchy_clarity,
+        avg_glanceability: avgScores.glanceability,
+        avg_density: avgScores.density,
+        avg_whitespace_ratio: avgScores.whitespace_ratio,
+        avg_brand_confidence: avgScores.brand_confidence,
         industries: industryCounts,
         brands: brandCounts,
         moods: moodCounts,

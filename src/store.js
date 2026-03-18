@@ -74,6 +74,9 @@ export class Store {
       // Visual features
       screens.createIndex({ 'visual_features.perceptual_hash': 1 }),
 
+      // Text search
+      screens.createIndex({ 'analysis.verdict': 'text' }),
+
       // Distillations
       distillations.createIndex({ name: 1 }, { unique: true }),
 
