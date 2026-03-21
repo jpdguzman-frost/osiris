@@ -11,6 +11,7 @@ import { setupAuth } from './src/auth.js';
 import { validateSOM, prepareSOM, scaleSOM } from './src/som.js';
 import { upgradeToV2, assignRolesTree } from './src/som-roles.js';
 import { mergeSOM } from './src/som-merge.js';
+import { classifyChanges, extractPatterns } from './src/refinement-filter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -1387,6 +1388,51 @@ router.post('/api/refinement-records', async (req, res) => {
     }
     const result = await store.saveRefinementRecord(record);
     res.json({ id: result.insertedId, status: 'saved' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Property Patterns ──────────────────────────────────────────────────
+
+router.post('/api/property-patterns/extract', async (req, res) => {
+  try {
+    const { brandId, screenType, limit } = req.body || {};
+    const query = {};
+    if (brandId) query.brandId = brandId;
+    if (screenType) query.screenType = screenType;
+    if (limit) query.limit = limit;
+
+    // Fetch refinement records
+    const records = await store.listRefinementRecords(query);
+    if (records.length === 0) {
+      return res.json({ ok: true, summary: { total: 0 }, patterns: { upserted: 0, updated: 0, total: 0 } });
+    }
+
+    // Classify changes
+    const { records: classified, summary } = classifyChanges(records);
+
+    // Fetch existing patterns for merging
+    const existingPatterns = await store.getPatterns({ brandId });
+
+    // Extract patterns from intentional changes
+    const patterns = extractPatterns(classified, existingPatterns);
+
+    // Upsert patterns
+    const result = patterns.length > 0
+      ? await store.bulkUpsertPatterns(patterns)
+      : { upserted: 0, updated: 0, total: 0 };
+
+    res.json({ ok: true, summary, patterns: result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/api/property-patterns', async (req, res) => {
+  try {
+    const patterns = await store.getPatterns(req.query);
+    res.json({ patterns, count: patterns.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -562,6 +562,50 @@ server.tool(
   }
 );
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SLICE 7 — Property Patterns
+// ═══════════════════════════════════════════════════════════════════════════
+
+server.tool(
+  'osiris_extract_patterns',
+  'Run the adversarial filter and pattern extraction on refinement records. Classifies each change (intentional, noise, cascade, exploratory, content) then extracts reusable property patterns from intentional changes. Patterns track designer preferences by (role, property) pair with lifecycle promotion (observed → candidate → confirmed).',
+  {
+    brandId: z.string().optional().describe('Filter refinement records by brand'),
+    screenType: z.string().optional().describe('Filter by screen type'),
+    limit: z.coerce.number().optional().describe('Max refinement records to process (default 50)'),
+  },
+  async ({ brandId, screenType, limit }) => {
+    const body = {};
+    if (brandId) body.brandId = brandId;
+    if (screenType) body.screenType = screenType;
+    if (limit) body.limit = limit;
+    const data = await apiPost('/api/property-patterns/extract', body);
+    return textResult(data);
+  }
+);
+
+server.tool(
+  'osiris_get_patterns',
+  'Query extracted property patterns. Patterns capture recurring designer preferences (e.g. "CTAs always get 8px corner radius"). Filter by role, property, brand, or lifecycle status.',
+  {
+    brandId: z.string().optional().describe('Filter by brand'),
+    screenType: z.string().optional().describe('Filter by screen type'),
+    role: z.string().optional().describe('Filter by SOM role (e.g. "cta", "heading")'),
+    property: z.string().optional().describe('Filter by property name (e.g. "cornerRadius")'),
+    status: z.enum(['observed', 'candidate', 'confirmed', 'tombstoned']).optional().describe('Filter by lifecycle status'),
+  },
+  async ({ brandId, screenType, role, property, status }) => {
+    const params = {};
+    if (brandId) params.brandId = brandId;
+    if (screenType) params.screenType = screenType;
+    if (role) params.role = role;
+    if (property) params.property = property;
+    if (status) params.status = status;
+    const data = await apiGet('/api/property-patterns', params);
+    return textResult(data);
+  }
+);
+
 // ─── Start ──────────────────────────────────────────────────────────────────
 
 const transport = new StdioServerTransport();

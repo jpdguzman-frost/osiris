@@ -91,6 +91,11 @@ export class Store {
       // Refinement Records
       this.db.collection('refinement_records').createIndex({ brandId: 1, screenType: 1 }),
       this.db.collection('refinement_records').createIndex({ createdAt: -1 }),
+
+      // Property Patterns
+      this.db.collection('property_patterns').createIndex({ role: 1, property: 1, brandId: 1 }, { unique: true }),
+      this.db.collection('property_patterns').createIndex({ status: 1 }),
+      this.db.collection('property_patterns').createIndex({ brandId: 1, screenType: 1 }),
     ]);
 
     logDim('Indexes ensured');
@@ -514,6 +519,76 @@ export class Store {
       ...record,
       createdAt: record.createdAt ? new Date(record.createdAt) : new Date(),
     });
+  }
+
+  // ── Property Patterns ───────────────────────────────────────────────────
+
+  async upsertPattern(pattern) {
+    await this.connect();
+    const filter = { role: pattern.role, property: pattern.property, brandId: pattern.brandId };
+    const now = new Date();
+    return this.db.collection('property_patterns').updateOne(
+      filter,
+      {
+        $set: {
+          screenType: pattern.screenType,
+          values: pattern.values,
+          modeValue: pattern.modeValue,
+          consistency: pattern.consistency,
+          direction: pattern.direction,
+          occurrences: pattern.occurrences,
+          status: pattern.status,
+          sourceRecordIds: pattern.sourceRecordIds,
+          lastSeenAt: pattern.lastSeenAt || now,
+          updatedAt: now,
+        },
+        $setOnInsert: {
+          firstSeenAt: pattern.firstSeenAt || now,
+          tombstonedAt: null,
+          tombstoneReason: null,
+        },
+      },
+      { upsert: true },
+    );
+  }
+
+  async getPatterns(query = {}) {
+    await this.connect();
+    const filter = {};
+    if (query.brandId) filter.brandId = query.brandId;
+    if (query.screenType) filter.screenType = query.screenType;
+    if (query.role) filter.role = query.role;
+    if (query.property) filter.property = query.property;
+    if (query.status) filter.status = query.status;
+    return this.db.collection('property_patterns')
+      .find(filter)
+      .sort({ occurrences: -1 })
+      .limit(parseInt(query.limit) || 100)
+      .toArray();
+  }
+
+  async updatePatternStatus(id, status, reason = null) {
+    await this.connect();
+    const update = { $set: { status, updatedAt: new Date() } };
+    if (status === 'tombstoned') {
+      update.$set.tombstonedAt = new Date();
+      update.$set.tombstoneReason = reason;
+    }
+    return this.db.collection('property_patterns').updateOne(
+      { _id: new ObjectId(id) },
+      update,
+    );
+  }
+
+  async bulkUpsertPatterns(patterns) {
+    let upserted = 0;
+    let updated = 0;
+    for (const pattern of patterns) {
+      const result = await this.upsertPattern(pattern);
+      if (result.upsertedCount > 0) upserted++;
+      else if (result.modifiedCount > 0) updated++;
+    }
+    return { upserted, updated, total: patterns.length };
   }
 
   // ── Synthesis Helpers ──────────────────────────────────────────────────
