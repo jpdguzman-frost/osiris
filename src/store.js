@@ -87,6 +87,10 @@ export class Store {
       templates.createIndex({ brandId: 1, tags: 1 }),
       templates.createIndex({ supersedes: 1 }),
       templates.createIndex({ usageCount: -1 }),
+
+      // Refinement Records
+      this.db.collection('refinement_records').createIndex({ brandId: 1, screenType: 1 }),
+      this.db.collection('refinement_records').createIndex({ createdAt: -1 }),
     ]);
 
     logDim('Indexes ensured');
@@ -488,6 +492,28 @@ export class Store {
   async deleteReferenceTemplate(id) {
     await this.connect();
     return this.db.collection('reference_templates').deleteOne({ _id: new ObjectId(id) });
+  }
+
+  // ── Refinement Records ─────────────────────────────────────────────────
+
+  async listRefinementRecords(query = {}) {
+    await this.connect();
+    const filter = {};
+    if (query.brandId) filter.brandId = query.brandId;
+    if (query.screenType) filter.screenType = query.screenType;
+    return this.db.collection('refinement_records')
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .limit(parseInt(query.limit) || 20)
+      .toArray();
+  }
+
+  async saveRefinementRecord(record) {
+    await this.connect();
+    return this.db.collection('refinement_records').insertOne({
+      ...record,
+      createdAt: record.createdAt ? new Date(record.createdAt) : new Date(),
+    });
   }
 
   // ── Synthesis Helpers ──────────────────────────────────────────────────

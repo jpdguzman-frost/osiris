@@ -1368,6 +1368,30 @@ router.delete('/api/reference-templates/:id', async (req, res) => {
   }
 });
 
+// ─── API: Refinement Records ─────────────────────────────────────────────────
+
+router.get('/api/refinement-records', async (req, res) => {
+  try {
+    const records = await store.listRefinementRecords(req.query);
+    res.json({ records, count: records.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/api/refinement-records', async (req, res) => {
+  try {
+    const record = req.body;
+    if (!record?.frameId || !record?.changes?.length) {
+      return res.status(400).json({ error: 'Missing frameId or changes' });
+    }
+    const result = await store.saveRefinementRecord(record);
+    res.json({ id: result.insertedId, status: 'saved' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── API: Rubric ─────────────────────────────────────────────────────────────
 
 router.get('/api/rubric', async (req, res) => {
