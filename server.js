@@ -1437,11 +1437,11 @@ router.post('/api/property-patterns/extract-from-templates', async (req, res) =>
       return res.json({ ok: true, patterns: { upserted: 0, updated: 0, total: 0 }, templateCount: 0 });
     }
 
-    // Fetch existing cross-brand patterns for merging
-    const existingPatterns = await store.getPatterns({ brandId: 'null' });
+    // Clear existing cross-brand template patterns (full re-extract)
+    await store.deleteCrossBrandPatterns();
 
-    // Extract patterns from template SOMs
-    const patterns = extractPatternsFromTemplates(templates, existingPatterns);
+    // Extract patterns from template SOMs (fresh, no merge needed)
+    const patterns = extractPatternsFromTemplates(templates);
 
     // Upsert patterns
     const result = patterns.length > 0

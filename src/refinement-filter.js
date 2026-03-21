@@ -227,6 +227,31 @@ const TEMPLATE_PROPERTIES = new Set([
 ]);
 
 /**
+ * Default values to ignore during template extraction.
+ * These represent Rex's built-in defaults, not designer choices.
+ */
+const DEFAULT_VALUES = {
+  fontFamily: new Set(['Inter']),
+  fill: new Set(['#FFFFFF', '#ffffff']),
+  clipsContent: new Set([true]),
+  gap: new Set([0]),
+  paddingTop: new Set([0]),
+  paddingRight: new Set([0]),
+  paddingBottom: new Set([0]),
+  paddingLeft: new Set([0]),
+  opacity: new Set([1]),
+  cornerRadius: new Set([0]),
+  strokeWeight: new Set([0, 1]),
+  textAlign: new Set(['LEFT']),
+};
+
+function isDefaultValue(property, value) {
+  const defaults = DEFAULT_VALUES[property];
+  if (!defaults) return false;
+  return defaults.has(value);
+}
+
+/**
  * Extract cross-brand patterns from reference template SOMs.
  * Walks each template's node tree, groups style values by (role, property),
  * and produces patterns with brandId: null (universal designer preferences).
@@ -331,6 +356,9 @@ function walkSomNode(node, groups, templateId) {
 }
 
 function addToGroup(groups, role, property, value, templateId) {
+  // Skip default values — they reflect Rex's defaults, not designer choices
+  if (isDefaultValue(property, value)) return;
+
   const key = role + ':' + property;
   if (!groups.has(key)) {
     groups.set(key, { role, property, values: [], templateIds: [] });

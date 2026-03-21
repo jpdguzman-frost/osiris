@@ -570,6 +570,11 @@ export class Store {
     );
   }
 
+  async deleteCrossBrandPatterns() {
+    await this.connect();
+    return this.db.collection('property_patterns').deleteMany({ brandId: null });
+  }
+
   async bulkUpsertPatterns(patterns) {
     let upserted = 0;
     let updated = 0;
