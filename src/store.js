@@ -217,45 +217,6 @@ export class Store {
     return { screens, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
-  // ── Distill (Compound Query) ────────────────────────────────────────────
-
-  async distill(options = {}) {
-    await this.connect();
-    const filter = {};
-
-    // Tag filter (any match)
-    if (options.tags?.length > 0) {
-      filter['fingerprint.style_tags'] = { $in: options.tags };
-    }
-
-    // Enum filters
-    if (options.screenType) filter['analysis.screen_type'] = options.screenType;
-    if (options.layoutType) filter['fingerprint.layout_type'] = options.layoutType;
-    if (options.designMood) filter['fingerprint.design_mood'] = options.designMood;
-    if (options.industry) filter.industry = options.industry;
-    if (options.source) filter.source = options.source;
-
-    // Score minimums
-    if (options.minScores) {
-      for (const [field, min] of Object.entries(options.minScores)) {
-        filter[`analysis.scores.${field}`] = { $gte: min };
-      }
-    }
-
-    // Sort
-    const sortField = options.sort || 'overall_quality';
-    const sort = { [`analysis.scores.${sortField}`]: -1 };
-
-    const limit = options.limit || 50;
-
-    return this.db.collection('screens')
-      .find(filter)
-      .sort(sort)
-      .limit(limit)
-      .project(SCREEN_LIST_PROJECTION)
-      .toArray();
-  }
-
   // ── Distillation Saves ──────────────────────────────────────────────────
 
   async saveDistillation(name, query, screenIds) {
