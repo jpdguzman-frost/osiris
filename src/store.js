@@ -586,6 +586,22 @@ export class Store {
     return { upserted, updated, total: patterns.length };
   }
 
+  // ── Style Guide ─────────────────────────────────────────────────────────
+
+  async saveStyleGuide(guide) {
+    await this.connect();
+    return this.db.collection('style_guides').updateOne(
+      { _id: 'current' },
+      { $set: { ...guide, updatedAt: new Date() } },
+      { upsert: true },
+    );
+  }
+
+  async getStyleGuide() {
+    await this.connect();
+    return this.db.collection('style_guides').findOne({ _id: 'current' });
+  }
+
   // ── Synthesis Helpers ──────────────────────────────────────────────────
 
   async exportForSynthesis(industry = null) {

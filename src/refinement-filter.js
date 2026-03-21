@@ -370,6 +370,289 @@ function addToGroup(groups, role, property, value, templateId) {
   }
 }
 
+// ─── Style Guide Extraction ─────────────────────────────────────────────────
+
+/**
+ * Extract a natural-language design principles document from reference templates.
+ * Analyzes typography, spacing, radii, and color patterns across all templates
+ * and produces a structured guide that Claude reads as design context.
+ */
+export function extractStyleGuide(templates) {
+  // Collect raw data from all templates
+  const groups = new Map();
+  const templateMeta = [];
+
+  for (const template of templates) {
+    if (!template.som?.root) continue;
+    walkSomNode(template.som.root, groups, template._id);
+    templateMeta.push({
+      id: template._id,
+      brand: template.brandId,
+      screenType: template.screenType,
+      screenSubtype: template.screenSubtype,
+    });
+  }
+
+  // Also collect data INCLUDING defaults for full picture
+  const allGroups = new Map();
+  for (const template of templates) {
+    if (!template.som?.root) continue;
+    walkSomNodeFull(template.som.root, allGroups, template._id);
+  }
+
+  // Synthesize principles
+  const typography = synthesizeTypography(groups, allGroups);
+  const spacing = synthesizeSpacing(groups, allGroups);
+  const radii = synthesizeRadii(groups, allGroups);
+  const colors = synthesizeColors(groups, allGroups);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    templateCount: templateMeta.length,
+    brands: [...new Set(templateMeta.map(t => t.brand))],
+    principles: {
+      typography,
+      spacing,
+      radii,
+      colors,
+    },
+    // Natural language summary for Claude to read
+    summary: generateSummary(typography, spacing, radii, colors, templateMeta),
+  };
+}
+
+/** Walk SOM without default filtering — captures the full picture. */
+function walkSomNodeFull(node, groups, templateId) {
+  if (!node.role || node.role === 'screen' || node.role === 'unknown') {
+    if (node.children) {
+      for (const child of node.children) walkSomNodeFull(child, groups, templateId);
+    }
+    return;
+  }
+  const style = node.style || {};
+  for (const prop of TEMPLATE_PROPERTIES) {
+    let value = style[prop];
+    if (value === undefined || value === null) continue;
+    if (prop === 'padding') {
+      if (typeof value === 'number') {
+        addToGroupRaw(groups, node.role, 'paddingTop', value);
+        addToGroupRaw(groups, node.role, 'paddingRight', value);
+        addToGroupRaw(groups, node.role, 'paddingBottom', value);
+        addToGroupRaw(groups, node.role, 'paddingLeft', value);
+      } else if (typeof value === 'object') {
+        if (value.top !== undefined) addToGroupRaw(groups, node.role, 'paddingTop', value.top);
+        if (value.right !== undefined) addToGroupRaw(groups, node.role, 'paddingRight', value.right);
+        if (value.bottom !== undefined) addToGroupRaw(groups, node.role, 'paddingBottom', value.bottom);
+        if (value.left !== undefined) addToGroupRaw(groups, node.role, 'paddingLeft', value.left);
+      }
+      continue;
+    }
+    if ((prop === 'letterSpacing' || prop === 'lineHeight') && typeof value === 'object') {
+      value = value.value;
+      if (value === undefined) continue;
+    }
+    addToGroupRaw(groups, node.role, prop, value);
+  }
+  if (node.children) {
+    for (const child of node.children) walkSomNodeFull(child, groups, templateId);
+  }
+}
+
+function addToGroupRaw(groups, role, property, value) {
+  const key = role + ':' + property;
+  if (!groups.has(key)) groups.set(key, { role, property, values: [] });
+  groups.get(key).values.push(value);
+}
+
+function getValues(groups, role, prop) {
+  const g = groups.get(role + ':' + prop);
+  return g ? g.values : [];
+}
+
+function mode(values) {
+  if (values.length === 0) return null;
+  return computeMode(values);
+}
+
+function unique(values) {
+  return [...new Set(values.map(v => typeof v === 'object' ? JSON.stringify(v) : v))];
+}
+
+// ── Synthesizers ──────────────────────────────────────────────────────────
+
+function synthesizeTypography(groups, allGroups) {
+  const roles = ['heading', 'label', 'value', 'nav', 'cta', 'section'];
+  const result = {};
+
+  for (const role of roles) {
+    const families = getValues(allGroups, role, 'fontFamily');
+    const weights = getValues(allGroups, role, 'fontWeight');
+    const sizes = getValues(allGroups, role, 'fontSize');
+    const spacing = getValues(allGroups, role, 'letterSpacing');
+    const lineHeights = getValues(allGroups, role, 'lineHeight');
+
+    if (families.length === 0 && weights.length === 0) continue;
+
+    result[role] = {};
+    if (families.length > 0) result[role].preferredFont = mode(families);
+    if (weights.length > 0) result[role].preferredWeight = mode(weights);
+    if (sizes.length > 0) result[role].sizeRange = { min: Math.min(...sizes), max: Math.max(...sizes), typical: mode(sizes) };
+    if (spacing.length > 0) result[role].letterSpacing = mode(spacing);
+    if (lineHeights.length > 0) result[role].lineHeight = mode(lineHeights);
+    result[role].sampleCount = Math.max(families.length, weights.length, sizes.length);
+  }
+
+  return result;
+}
+
+function synthesizeSpacing(groups, allGroups) {
+  // Collect all gap and padding values by role
+  const roles = ['section', 'card', 'row', 'nav', 'cta', 'content-group', 'heading'];
+  const result = {};
+
+  for (const role of roles) {
+    const gaps = getValues(allGroups, role, 'gap');
+    const padT = getValues(allGroups, role, 'paddingTop');
+    const padR = getValues(allGroups, role, 'paddingRight');
+    const padB = getValues(allGroups, role, 'paddingBottom');
+    const padL = getValues(allGroups, role, 'paddingLeft');
+
+    if (gaps.length === 0 && padT.length === 0) continue;
+
+    result[role] = {};
+    if (gaps.length > 0) result[role].gap = { typical: mode(gaps), range: unique(gaps) };
+    if (padT.length > 0) {
+      result[role].padding = {
+        vertical: mode(padT),
+        horizontal: mode(padR.length > 0 ? padR : padL),
+        verticalRange: unique(padT),
+        horizontalRange: unique(padR),
+      };
+    }
+  }
+
+  // Detect grid system
+  const allSpacingValues = [];
+  for (const [, g] of allGroups) {
+    if (['gap', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'].includes(g.property)) {
+      allSpacingValues.push(...g.values.filter(v => typeof v === 'number' && v > 0));
+    }
+  }
+  const gridBase = detectGrid(allSpacingValues);
+
+  result._gridBase = gridBase;
+  result._spacingScale = gridBase ? [...new Set(allSpacingValues)].filter(v => v % gridBase === 0).sort((a, b) => a - b) : [];
+
+  return result;
+}
+
+function detectGrid(values) {
+  if (values.length < 4) return 8; // default
+  // Check if most values are divisible by 4 or 8
+  const div8 = values.filter(v => v % 8 === 0).length / values.length;
+  const div4 = values.filter(v => v % 4 === 0).length / values.length;
+  if (div8 > 0.7) return 8;
+  if (div4 > 0.7) return 4;
+  return 8;
+}
+
+function synthesizeRadii(groups, allGroups) {
+  const roles = ['card', 'cta', 'input', 'nav', 'section', 'icon', 'bottom-nav', 'pill', 'icon-bg'];
+  const result = {};
+
+  for (const role of roles) {
+    const radii = getValues(allGroups, role, 'cornerRadius');
+    if (radii.length === 0) continue;
+    const nonZero = radii.filter(v => typeof v === 'number' && v > 0);
+    if (nonZero.length === 0) continue;
+    result[role] = { typical: mode(nonZero), range: unique(nonZero), sampleCount: nonZero.length };
+  }
+
+  return result;
+}
+
+function synthesizeColors(groups, allGroups) {
+  // Collect fill colors by role
+  const textRoles = ['heading', 'label', 'value', 'cta', 'nav'];
+  const result = { textColors: {}, approach: [] };
+
+  for (const role of textRoles) {
+    const fills = getValues(allGroups, role, 'fill');
+    if (fills.length === 0) continue;
+    const colorFills = fills.filter(v => typeof v === 'string' && v.startsWith('#'));
+    if (colorFills.length === 0) continue;
+    result.textColors[role] = { typical: mode(colorFills), variations: unique(colorFills) };
+  }
+
+  // Infer approach
+  result.approach = [
+    'Colors should be derived from the source screen palette, not prescribed.',
+    'Extract dominant, accent, and neutral colors from the reference screenshot.',
+    'Primary text uses the darkest available color from the palette.',
+    'Secondary/body text uses a softer tone (~60-80% opacity or mid-gray).',
+    'The designer tends to remove unnecessary white fills from containers.',
+  ];
+
+  return result;
+}
+
+// ── Summary Generator ─────────────────────────────────────────────────────
+
+function generateSummary(typography, spacing, radii, colors, meta) {
+  const lines = [];
+  const brands = [...new Set(meta.map(t => t.brand))];
+
+  lines.push(`Design principles extracted from ${meta.length} refined screens across ${brands.length} brands (${brands.join(', ')}).`);
+  lines.push('');
+
+  // Typography
+  lines.push('## Typography');
+  for (const [role, data] of Object.entries(typography)) {
+    const parts = [];
+    if (data.preferredFont) parts.push(data.preferredFont);
+    if (data.preferredWeight) parts.push(`weight ${data.preferredWeight}`);
+    if (data.sizeRange) parts.push(`${data.sizeRange.min}-${data.sizeRange.max}px (typical ${data.sizeRange.typical}px)`);
+    if (data.letterSpacing) parts.push(`letter-spacing ${data.letterSpacing}%`);
+    if (data.lineHeight) parts.push(`line-height ${data.lineHeight}%`);
+    lines.push(`- **${role}**: ${parts.join(', ')} (${data.sampleCount} samples)`);
+  }
+  lines.push('');
+
+  // Spacing
+  lines.push('## Spacing');
+  if (spacing._gridBase) lines.push(`- Grid base: ${spacing._gridBase}px`);
+  if (spacing._spacingScale.length > 0) lines.push(`- Scale: ${spacing._spacingScale.join(', ')}px`);
+  for (const [role, data] of Object.entries(spacing)) {
+    if (role.startsWith('_')) continue;
+    const parts = [];
+    if (data.gap) parts.push(`gap ${data.gap.typical}px`);
+    if (data.padding) parts.push(`padding V:${data.padding.vertical}px H:${data.padding.horizontal}px`);
+    lines.push(`- **${role}**: ${parts.join(', ')}`);
+  }
+  lines.push('');
+
+  // Radii
+  lines.push('## Corner Radius');
+  lines.push('Radii are proportional to element size. Infer the relationship from these observed values:');
+  for (const [role, data] of Object.entries(radii)) {
+    lines.push(`- **${role}**: ${data.typical}px typical (range: ${data.range.join(', ')}px, ${data.sampleCount} samples)`);
+  }
+  lines.push('');
+
+  // Colors
+  lines.push('## Color Approach');
+  for (const line of colors.approach) {
+    lines.push(`- ${line}`);
+  }
+  lines.push('');
+  lines.push('Observed text color patterns (for reference, not prescription):');
+  for (const [role, data] of Object.entries(colors.textColors)) {
+    lines.push(`- **${role}**: typically ${data.typical} (${data.variations.length} variation${data.variations.length > 1 ? 's' : ''})`);
+  }
+
+  return lines.join('\n');
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function classify(change, classification, reason) {

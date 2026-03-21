@@ -11,7 +11,7 @@ import { setupAuth } from './src/auth.js';
 import { validateSOM, prepareSOM, scaleSOM } from './src/som.js';
 import { upgradeToV2, assignRolesTree } from './src/som-roles.js';
 import { mergeSOM } from './src/som-merge.js';
-import { classifyChanges, extractPatterns, extractPatternsFromTemplates } from './src/refinement-filter.js';
+import { classifyChanges, extractPatterns, extractPatternsFromTemplates, extractStyleGuide } from './src/refinement-filter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -1458,6 +1458,35 @@ router.get('/api/property-patterns', async (req, res) => {
   try {
     const patterns = await store.getPatterns(req.query);
     res.json({ patterns, count: patterns.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Style Guide ────────────────────────────────────────────────────────
+
+router.post('/api/style-guide/extract', async (req, res) => {
+  try {
+    const templates = await store.listReferenceTemplates({ headsOnly: true, includeSom: true });
+    if (templates.length === 0) {
+      return res.json({ ok: true, guide: null, templateCount: 0 });
+    }
+    const guide = extractStyleGuide(templates);
+    // Store the latest guide
+    await store.saveStyleGuide(guide);
+    res.json({ ok: true, guide, templateCount: templates.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/api/style-guide', async (req, res) => {
+  try {
+    const guide = await store.getStyleGuide();
+    if (!guide) {
+      return res.json({ guide: null, message: 'No style guide extracted yet. Call POST /api/style-guide/extract first.' });
+    }
+    res.json({ guide });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

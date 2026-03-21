@@ -616,6 +616,33 @@ server.tool(
   }
 );
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SLICE 8 — Style Guide
+// ═══════════════════════════════════════════════════════════════════════════
+
+server.tool(
+  'osiris_get_style_guide',
+  'Get the designer\'s established style guide — typography, spacing, radius, and color principles extracted from refined reference templates. Read this before building screens to understand the designer\'s preferences. The guide provides principles and relationships, not rigid rules. Use contextual judgment when applying.',
+  {},
+  async () => {
+    const data = await apiGet('/api/style-guide');
+    if (data.guide?.summary) {
+      return { content: [{ type: 'text', text: data.guide.summary }] };
+    }
+    return textResult(data);
+  }
+);
+
+server.tool(
+  'osiris_extract_style_guide',
+  'Re-extract the style guide from all reference templates. Run this after saving new refined templates to update the design principles.',
+  {},
+  async () => {
+    const data = await apiPost('/api/style-guide/extract', {});
+    return textResult(data);
+  }
+);
+
 // ─── Start ──────────────────────────────────────────────────────────────────
 
 const transport = new StdioServerTransport();
