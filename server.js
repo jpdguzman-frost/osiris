@@ -1258,6 +1258,94 @@ Screens:\n${summaries}\n\nRespond ONLY with valid JSON, no markdown fences.`
 });
 
 
+// ─── API: Reference Templates ───────────────────────────────────────
+
+router.put('/api/reference-templates', async (req, res) => {
+  try {
+    const data = req.body;
+    if (!data || !data.som || !data.som.root) {
+      return res.status(400).json({ error: 'Request body must include a som with a root node' });
+    }
+    if (!data.brandId || !data.screenType) {
+      return res.status(400).json({ error: 'brandId and screenType are required' });
+    }
+
+    const validation = validateSOM(data.som);
+    if (!validation.valid) {
+      return res.status(400).json({ error: 'Invalid SOM', details: validation.errors });
+    }
+
+    const upgraded = (!data.som.version || data.som.version < 2) ? upgradeToV2(data.som) : data.som;
+    const cleaned = prepareSOM(upgraded);
+    data.som = cleaned;
+
+    const result = await store.saveReferenceTemplate(data);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/api/reference-templates/:id', async (req, res) => {
+  try {
+    const template = await store.getReferenceTemplate(req.params.id);
+    if (!template) return res.status(404).json({ error: 'Template not found' });
+
+    if (req.query.includeLineage === 'true') {
+      const lineage = [template];
+      let current = template;
+      while (current.supersedes) {
+        const prev = await store.getReferenceTemplate(current.supersedes);
+        if (!prev) break;
+        lineage.push(prev);
+        current = prev;
+      }
+      return res.json({ template, lineage });
+    }
+
+    res.json(template);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/api/reference-templates/find', async (req, res) => {
+  try {
+    const { screenType, brandId, tags, mood, platform, limit } = req.body || {};
+    if (!screenType) return res.status(400).json({ error: 'screenType is required' });
+
+    const results = await store.findReferenceTemplates(screenType, { brandId, tags, mood, platform, limit });
+    res.json({ templates: results, count: results.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/api/reference-templates', async (req, res) => {
+  try {
+    const options = {};
+    if (req.query.brandId) options.brandId = req.query.brandId;
+    if (req.query.screenType) options.screenType = req.query.screenType;
+    if (req.query.headsOnly !== undefined) options.headsOnly = req.query.headsOnly !== 'false';
+
+    const templates = await store.listReferenceTemplates(options);
+    res.json({ templates, count: templates.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/api/reference-templates/:id/deprecate', async (req, res) => {
+  try {
+    const { reason } = req.body || {};
+    const result = await store.deprecateReferenceTemplate(req.params.id, reason || null);
+    if (result.matchedCount === 0) return res.status(404).json({ error: 'Template not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── API: Rubric ─────────────────────────────────────────────────────────────
 
 router.get('/api/rubric', async (req, res) => {
