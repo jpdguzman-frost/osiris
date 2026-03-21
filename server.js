@@ -56,6 +56,19 @@ app.set('trust proxy', 1);
 
 const { requireAuth } = setupAuth(router, BASE_PATH);
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function validateAndPrepareSOM(som) {
+  const validation = validateSOM(som);
+  if (!validation.valid) return { error: 'Invalid SOM', details: validation.errors };
+  const upgraded = (!som.version || som.version < 2) ? upgradeToV2(som) : som;
+  return { som: prepareSOM(upgraded) };
+}
+
+function isValidObjectId(str) {
+  return /^[0-9a-fA-F]{24}$/.test(str);
+}
+
 // ─── API: Stats ──────────────────────────────────────────────────────────────
 
 router.get('/api/stats', async (req, res) => {
@@ -200,15 +213,10 @@ router.put('/api/screens/:id/som', async (req, res) => {
     const som = req.body;
     if (!som || !som.root) return res.status(400).json({ error: 'Request body must be a SOM with a root node' });
 
-    const validation = validateSOM(som);
-    if (!validation.valid) {
-      return res.status(400).json({ error: 'Invalid SOM', details: validation.errors });
-    }
+    const result = validateAndPrepareSOM(som);
+    if (result.error) return res.status(400).json(result);
 
-    // Auto-upgrade v1 → v2 on save
-    const upgraded = (!som.version || som.version < 2) ? upgradeToV2(som) : som;
-    const cleaned = prepareSOM(upgraded);
-    await store.updateSOM(req.params.id, cleaned);
+    await store.updateSOM(req.params.id, result.som);
 
     res.json({ ok: true, screen_id: req.params.id });
   } catch (err) {
@@ -1270,14 +1278,9 @@ router.put('/api/reference-templates', async (req, res) => {
       return res.status(400).json({ error: 'brandId and screenType are required' });
     }
 
-    const validation = validateSOM(data.som);
-    if (!validation.valid) {
-      return res.status(400).json({ error: 'Invalid SOM', details: validation.errors });
-    }
-
-    const upgraded = (!data.som.version || data.som.version < 2) ? upgradeToV2(data.som) : data.som;
-    const cleaned = prepareSOM(upgraded);
-    data.som = cleaned;
+    const validated = validateAndPrepareSOM(data.som);
+    if (validated.error) return res.status(400).json(validated);
+    data.som = validated.som;
 
     const result = await store.saveReferenceTemplate(data);
     res.json({ ok: true, ...result });
@@ -1288,6 +1291,9 @@ router.put('/api/reference-templates', async (req, res) => {
 
 router.get('/api/reference-templates/:id', async (req, res) => {
   try {
+    if (!isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid template ID format' });
+    }
     const template = await store.getReferenceTemplate(req.params.id);
     if (!template) return res.status(404).json({ error: 'Template not found' });
 
@@ -1303,7 +1309,7 @@ router.get('/api/reference-templates/:id', async (req, res) => {
       return res.json({ template, lineage });
     }
 
-    res.json(template);
+    res.json({ template });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1337,6 +1343,9 @@ router.get('/api/reference-templates', async (req, res) => {
 
 router.patch('/api/reference-templates/:id/deprecate', async (req, res) => {
   try {
+    if (!isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid template ID format' });
+    }
     const { reason } = req.body || {};
     const result = await store.deprecateReferenceTemplate(req.params.id, reason || null);
     if (result.matchedCount === 0) return res.status(404).json({ error: 'Template not found' });

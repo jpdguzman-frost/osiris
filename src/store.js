@@ -1,5 +1,6 @@
 import { MongoClient, ObjectId } from 'mongodb';
 import { logSuccess, logWarn, logError, logDim, SCORE_FIELDS } from './utils.js';
+import { jaccardSimilarity } from './similarity.js';
 
 const DB_NAME = 'osiris';
 
@@ -396,39 +397,22 @@ export class Store {
     };
     if (screenType) filter.screenType = screenType;
 
-    const candidates = await col.find(filter).toArray();
+    // Exclude SOM from candidates to avoid loading large payloads into memory
+    const candidates = await col.find(filter).project({ som: 0 }).toArray();
 
     const limit = options.limit || 5;
     const now = new Date();
 
     const scored = candidates.map(t => {
-      // screenType match (always 1 since we filter by it, but handles edge cases)
       const screenTypeScore = t.screenType === screenType ? 1 : 0;
-
-      // brandId match
       const brandScore = (options.brandId && t.brandId === options.brandId) ? 1 : 0;
-
-      // Tag Jaccard similarity
-      let tagScore = 0;
-      if (options.tags && options.tags.length > 0 && t.tags && t.tags.length > 0) {
-        const setA = new Set(options.tags);
-        const setB = new Set(t.tags);
-        const intersection = [...setA].filter(x => setB.has(x)).length;
-        const union = new Set([...setA, ...setB]).size;
-        tagScore = union > 0 ? intersection / union : 0;
-      }
-
-      // Mood match
+      const tagScore = (options.tags?.length > 0 && t.tags?.length > 0)
+        ? jaccardSimilarity(options.tags, t.tags)
+        : 0;
       const moodScore = (options.mood && t.mood === options.mood) ? 1 : 0;
-
-      // Recency
       const daysSince = (now - new Date(t.updatedAt)) / (1000 * 60 * 60 * 24);
       const recencyScore = 1 - Math.min(daysSince, 180) / 180;
-
-      // Usage
       const usageScore = Math.min(t.usageCount || 0, 20) / 20;
-
-      // Generation
       const generationScore = Math.min(t.generation || 1, 5) / 5;
 
       const score =
@@ -444,17 +428,15 @@ export class Store {
     });
 
     scored.sort((a, b) => b._score - a._score);
-    const results = scored.slice(0, limit);
+    return scored.slice(0, limit);
+  }
 
-    // Increment usageCount and lastUsedAt on the top result
-    if (results.length > 0) {
-      await col.updateOne(
-        { _id: results[0]._id },
-        { $inc: { usageCount: 1 }, $set: { lastUsedAt: now } },
-      );
-    }
-
-    return results;
+  async markTemplateUsed(id) {
+    await this.connect();
+    return this.db.collection('reference_templates').updateOne(
+      { _id: new ObjectId(id) },
+      { $inc: { usageCount: 1 }, $set: { lastUsedAt: new Date() } },
+    );
   }
 
   async listReferenceTemplates(options = {}) {
