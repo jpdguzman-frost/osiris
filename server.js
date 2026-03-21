@@ -1257,41 +1257,6 @@ Screens:\n${summaries}\n\nRespond ONLY with valid JSON, no markdown fences.`
   }
 });
 
-// ─── API: Distillations (for bucket import) ──────────────────────────────────
-
-router.get('/api/distillations', async (req, res) => {
-  try {
-    const distillations = await store.listDistillations();
-    res.json({ distillations });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.post('/api/buckets/import-distillation', async (req, res) => {
-  const { distillation_name, bucket_name } = req.body;
-  if (!distillation_name) return res.status(400).json({ error: 'distillation_name required' });
-  try {
-    const distillation = await store.getDistillation(distillation_name);
-    if (!distillation) return res.status(404).json({ error: 'Distillation not found' });
-
-    const name = bucket_name || distillation_name;
-    try {
-      await store.createBucket(name);
-    } catch (err) {
-      if (err.code !== 11000) throw err;
-      // Bucket already exists, will just add screens
-    }
-
-    // Find the bucket by name
-    const bucket = await store.db.collection('buckets').findOne({ name });
-    await store.addScreensToBucket(bucket._id.toString(), distillation.screen_ids);
-
-    res.json({ ok: true, bucket_name: name, count: distillation.screen_ids.length });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // ─── API: Rubric ─────────────────────────────────────────────────────────────
 

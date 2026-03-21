@@ -126,12 +126,6 @@ const api = {
   generateBucketMetadata: (id) => fetch(BASE + '/api/buckets/' + encodeURIComponent(id) + '/generate-metadata', {
     method: 'POST',
   }).then(r => r.json()),
-  distillations: () => api.get('/api/distillations'),
-  importDistillation: (distillationName, bucketName) => fetch(BASE + '/api/buckets/import-distillation', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ distillation_name: distillationName, bucket_name: bucketName }),
-  }).then(r => r.json()),
   deleteScreens: (ids) => fetch(BASE + '/api/screens', {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
@@ -1768,26 +1762,6 @@ const app = new Ractive({
     this.set('bucketDiscoverResults', []);
     this.set('bucketDiscoverSelectedIds', new Set());
     this.set('bucketDiscoverSelectMode', false);
-  },
-
-  importDistillationPrompt: async function () {
-    try {
-      const data = await api.distillations();
-      if (data.distillations.length === 0) {
-        window.alert('No distillations found. Run a distillation first.');
-        return;
-      }
-      const names = data.distillations.map(d => d.name + ' (' + d.count + ' screens)');
-      const choice = window.prompt('Select distillation to import (enter name):\n\n' + names.join('\n'));
-      if (!choice) return;
-      const distName = choice.split(' (')[0].trim();
-      const bucketName = window.prompt('Bucket name:', distName) || distName;
-      const result = await api.importDistillation(distName, bucketName);
-      if (result.error) { window.alert(result.error); return; }
-      this.loadBuckets();
-    } catch (err) {
-      console.error('Import distillation error:', err);
-    }
   },
 
   // ── Benchmark ──────────────────────────────────────────────────────

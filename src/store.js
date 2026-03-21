@@ -49,7 +49,6 @@ export class Store {
 
   async ensureIndexes() {
     const screens = this.db.collection('screens');
-    const distillations = this.db.collection('distillations');
     const buckets = this.db.collection('buckets');
 
     await Promise.all([
@@ -76,9 +75,6 @@ export class Store {
 
       // Text search
       screens.createIndex({ 'analysis.verdict': 'text' }),
-
-      // Distillations
-      distillations.createIndex({ name: 1 }, { unique: true }),
 
       // Buckets
       buckets.createIndex({ name: 1 }, { unique: true }),
@@ -215,39 +211,6 @@ export class Store {
     ]);
 
     return { screens, total, page, limit, totalPages: Math.ceil(total / limit) };
-  }
-
-  // ── Distillation Saves ──────────────────────────────────────────────────
-
-  async saveDistillation(name, query, screenIds) {
-    await this.connect();
-    return this.db.collection('distillations').updateOne(
-      { name },
-      {
-        $set: {
-          name,
-          query,
-          screen_ids: screenIds,
-          count: screenIds.length,
-          created_at: new Date(),
-        },
-      },
-      { upsert: true },
-    );
-  }
-
-  async getDistillation(name) {
-    await this.connect();
-    return this.db.collection('distillations').findOne({ name });
-  }
-
-  async listDistillations() {
-    await this.connect();
-    return this.db.collection('distillations')
-      .find({})
-      .project({ name: 1, count: 1, created_at: 1 })
-      .sort({ created_at: -1 })
-      .toArray();
   }
 
   // ── Bucket CRUD ────────────────────────────────────────────────────────
@@ -405,7 +368,7 @@ export class Store {
     }
 
     // Single $facet replaces 13 sequential roundtrips
-    const [facetResult, distillationCount] = await Promise.all([
+    const [facetResult] = await Promise.all([
       screens.aggregate([{
         $facet: {
           total: [{ $count: 'count' }],
@@ -424,7 +387,6 @@ export class Store {
           averages: [{ $group: avgGroup }],
         },
       }]).toArray(),
-      this.db.collection('distillations').countDocuments(),
     ]);
 
     const f = facetResult[0];
@@ -449,7 +411,6 @@ export class Store {
       withVisualFeatures: f.withVisualFeatures[0]?.count || 0,
       averages,
       totalCost: f.totalCost[0]?.totalCost || 0,
-      distillationCount,
     };
   }
 
