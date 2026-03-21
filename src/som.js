@@ -8,7 +8,7 @@ import { deepClone } from './utils.js';
 
 const TYPE_SCALE = [10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 64];
 const GRID = 4;
-const VALID_NODE_TYPES = new Set(['FRAME', 'TEXT', 'RECTANGLE', 'ELLIPSE', 'LINE']);
+const VALID_NODE_TYPES = new Set(['FRAME', 'TEXT', 'RECTANGLE', 'ELLIPSE', 'LINE', 'INSTANCE', 'VECTOR', 'GROUP', 'COMPONENT']);
 const HEX_RE = /^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -166,10 +166,28 @@ export function validateSOM(som) {
 
 // ─── Prepare SOM for Storage ─────────────────────────────────────────────────
 
+// Map non-standard roleCategories to valid ones
+const ROLE_CATEGORY_ALIASES = {
+  navigation: 'structure',
+  unknown: 'decorative',
+};
+
+function normalizeRoleCategories(node) {
+  if (node.roleCategory && ROLE_CATEGORY_ALIASES[node.roleCategory]) {
+    node.roleCategory = ROLE_CATEGORY_ALIASES[node.roleCategory];
+  }
+  if (Array.isArray(node.children)) {
+    node.children.forEach(normalizeRoleCategories);
+  }
+}
+
 export function prepareSOM(som) {
   // Ensure required metadata
   if (!som.referenceFrame) som.referenceFrame = { width: 356, height: 730 };
   if (!som.version) som.version = 1;
+
+  // Normalize roleCategories from live Figma extractions
+  if (som.root) normalizeRoleCategories(som.root);
 
   // Post-process: snap to grid, fix colors, strip nulls
   if (som.root) som.root = postProcessNode(som.root);
