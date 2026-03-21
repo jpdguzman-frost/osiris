@@ -485,6 +485,11 @@ export class Store {
     );
   }
 
+  async deleteReferenceTemplate(id) {
+    await this.connect();
+    return this.db.collection('reference_templates').deleteOne({ _id: new ObjectId(id) });
+  }
+
   // ── Synthesis Helpers ──────────────────────────────────────────────────
 
   async exportForSynthesis(industry = null) {

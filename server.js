@@ -1355,6 +1355,19 @@ router.patch('/api/reference-templates/:id/deprecate', async (req, res) => {
   }
 });
 
+router.delete('/api/reference-templates/:id', async (req, res) => {
+  try {
+    if (!isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid template ID format' });
+    }
+    const result = await store.deleteReferenceTemplate(req.params.id);
+    if (result.deletedCount === 0) return res.status(404).json({ error: 'Template not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── API: Rubric ─────────────────────────────────────────────────────────────
 
 router.get('/api/rubric', async (req, res) => {
