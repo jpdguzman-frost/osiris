@@ -6,18 +6,18 @@
 import { ROLE_CATEGORIES } from './som-roles.js';
 import { deepClone } from './utils.js';
 
-const TYPE_SCALE = [10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 64];
-const GRID = 4;
+export const TYPE_SCALE = [10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 64];
+export const GRID = 4;
 const VALID_NODE_TYPES = new Set(['FRAME', 'TEXT', 'RECTANGLE', 'ELLIPSE', 'LINE']);
 const HEX_RE = /^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function snapToGrid(value) {
+export function snapToGrid(value) {
   return Math.round(value / GRID) * GRID;
 }
 
-function snapFontSize(size) {
+export function snapFontSize(size) {
   let closest = TYPE_SCALE[0];
   let minDiff = Math.abs(size - closest);
   for (const s of TYPE_SCALE) {

@@ -83,6 +83,18 @@ export class Store {
       // Buckets
       buckets.createIndex({ name: 1 }, { unique: true }),
       buckets.createIndex({ updated_at: -1 }),
+
+      // Refinement deltas
+      this.db.collection('deltas').createIndex({ 'context.screen_type': 1 }),
+      this.db.collection('deltas').createIndex({ 'context.layout_type': 1 }),
+      this.db.collection('deltas').createIndex({ 'context.design_mood': 1 }),
+      this.db.collection('deltas').createIndex({ created_at: -1 }),
+      this.db.collection('deltas').createIndex({ source_screen_id: 1 }),
+
+      // Refinement principles
+      this.db.collection('refinement_principles').createIndex({ status: 1 }),
+      this.db.collection('refinement_principles').createIndex({ 'conditions.screen_type': 1 }),
+      this.db.collection('refinement_principles').createIndex({ 'conditions.role': 1 }),
     ]);
 
     logDim('Indexes ensured');
@@ -570,5 +582,99 @@ export class Store {
       benchmark: { averages: benchAverages, count: benchAvg.count || 0 },
       deltas,
     };
+  }
+
+  // ── Refinement Deltas ───────────────────────────────────────────────────
+
+  async saveDelta(delta) {
+    await this.connect();
+    delta.created_at = delta.created_at || new Date();
+    const result = await this.db.collection('deltas').insertOne(delta);
+    return result.insertedId;
+  }
+
+  async getDelta(id) {
+    await this.connect();
+    return this.db.collection('deltas').findOne({ _id: new ObjectId(id) });
+  }
+
+  async getDeltas(filter = {}, limit = 50) {
+    await this.connect();
+    return this.db.collection('deltas')
+      .find(filter)
+      .sort({ created_at: -1 })
+      .limit(limit)
+      .toArray();
+  }
+
+  async listDeltas({ screen_type, design_mood, limit = 20 } = {}) {
+    await this.connect();
+    const filter = {};
+    if (screen_type) filter['context.screen_type'] = screen_type;
+    if (design_mood) filter['context.design_mood'] = design_mood;
+
+    return this.db.collection('deltas').aggregate([
+      { $match: filter },
+      { $sort: { created_at: -1 } },
+      { $limit: limit },
+      { $project: {
+        source_screen_id: 1,
+        context: 1,
+        'structural_signature.node_count': 1,
+        node_deltas_count: { $size: { $ifNull: ['$node_deltas', []] } },
+        created_at: 1,
+      }},
+    ]).toArray();
+  }
+
+  async deleteDelta(id) {
+    await this.connect();
+    return this.db.collection('deltas').deleteOne({ _id: new ObjectId(id) });
+  }
+
+  async countDeltas() {
+    await this.connect();
+    return this.db.collection('deltas').countDocuments();
+  }
+
+  // ── Refinement Principles ─────────────────────────────────────────────
+
+  async savePrinciple(principle) {
+    await this.connect();
+    principle.created_at = principle.created_at || new Date();
+    principle.last_validated = principle.last_validated || new Date();
+    const result = await this.db.collection('refinement_principles').insertOne(principle);
+    return result.insertedId;
+  }
+
+  async savePrinciples(principles) {
+    await this.connect();
+    if (!principles || principles.length === 0) return { insertedCount: 0 };
+    const docs = principles.map(p => ({
+      ...p,
+      created_at: p.created_at || new Date(),
+      last_validated: p.last_validated || new Date(),
+    }));
+    const result = await this.db.collection('refinement_principles').insertMany(docs);
+    return { insertedCount: result.insertedCount };
+  }
+
+  async getPrinciples(filter = {}) {
+    await this.connect();
+    return this.db.collection('refinement_principles')
+      .find(filter)
+      .sort({ evidence_count: -1 })
+      .toArray();
+  }
+
+  async clearPrinciples() {
+    await this.connect();
+    const result = await this.db.collection('refinement_principles').deleteMany({});
+    return result.deletedCount;
+  }
+
+  async deletePrinciple(id) {
+    await this.connect();
+    return this.db.collection('refinement_principles').deleteOne({ _id: new ObjectId(id) });
   }
 }

@@ -11,6 +11,7 @@ import { setupAuth } from './src/auth.js';
 import { validateSOM, prepareSOM, scaleSOM } from './src/som.js';
 import { upgradeToV2, assignRolesTree } from './src/som-roles.js';
 import { mergeSOM } from './src/som-merge.js';
+import { computeNodeDeltas, buildStructuralSignature, buildRefinementContext, extractPrinciples } from './src/som-refine.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -282,6 +283,148 @@ router.post('/api/som/merge', async (req, res) => {
     }
 
     res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API: Refinement Layer ───────────────────────────────────────────────────
+
+router.get('/api/refinement/context/:screenId', async (req, res) => {
+  try {
+    const maxExemplars = parseInt(req.query.max_exemplars) || 3;
+    const context = await buildRefinementContext(store, req.params.screenId, { maxExemplars });
+    if (context.error) return res.status(404).json({ error: context.error });
+    res.json(context);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/api/refinement/deltas', async (req, res) => {
+  try {
+    const { source_screen_id, before_som, after_som } = req.body;
+    if (!source_screen_id || !before_som || !after_som) {
+      return res.status(400).json({ error: 'source_screen_id, before_som, and after_som are required' });
+    }
+    if (!before_som.root || !after_som.root) {
+      return res.status(400).json({ error: 'Both SOMs must have a root node' });
+    }
+
+    // Get screen context
+    const screen = await store.getScreen(source_screen_id);
+    if (!screen) return res.status(404).json({ error: `Screen ${source_screen_id} not found` });
+
+    const context = {
+      screen_type: screen.analysis?.screen_type || 'unknown',
+      layout_type: screen.fingerprint?.layout_type || 'unknown',
+      design_mood: screen.fingerprint?.design_mood || 'unknown',
+      style_tags: screen.fingerprint?.style_tags || [],
+      platform: screen.analysis?.platform || 'unknown',
+    };
+
+    // Compute structural signature and node deltas
+    const signature = buildStructuralSignature(before_som);
+    const { node_deltas, unmatched_before, unmatched_after } = computeNodeDeltas(before_som, after_som);
+
+    context.role_distribution = signature.category_counts;
+
+    const delta = {
+      source_screen_id,
+      context,
+      structural_signature: signature,
+      before_som,
+      after_som,
+      node_deltas,
+    };
+
+    const id = await store.saveDelta(delta);
+
+    res.json({
+      delta_id: id.toString(),
+      node_deltas_count: node_deltas.length,
+      unmatched_before: unmatched_before.length,
+      unmatched_after: unmatched_after.length,
+      context,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/api/refinement/deltas', async (req, res) => {
+  try {
+    const { screen_type, design_mood, limit } = req.query;
+    const deltas = await store.listDeltas({
+      screen_type,
+      design_mood,
+      limit: parseInt(limit) || 20,
+    });
+    res.json({ deltas, count: deltas.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/api/refinement/deltas/:id', async (req, res) => {
+  try {
+    const delta = await store.getDelta(req.params.id);
+    if (!delta) return res.status(404).json({ error: 'Delta not found' });
+    res.json(delta);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/api/refinement/principles', async (req, res) => {
+  try {
+    const filter = {};
+    if (req.query.status && req.query.status !== 'all') {
+      filter.status = req.query.status;
+    }
+    if (req.query.screen_type) {
+      filter['conditions.screen_type'] = req.query.screen_type;
+    }
+    const principles = await store.getPrinciples(filter);
+    res.json({ principles, count: principles.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/api/refinement/principles/extract', async (req, res) => {
+  try {
+    const minEvidence = parseInt(req.body.min_evidence) || 3;
+
+    // Get all deltas for extraction
+    const allDeltas = await store.getDeltas({}, 1000);
+    if (allDeltas.length === 0) {
+      return res.json({ extracted: 0, confirmed: 0, tentative: 0, message: 'No deltas to extract from' });
+    }
+
+    const principles = extractPrinciples(allDeltas, { minEvidence });
+
+    // Clear existing and save new
+    const deleted = await store.clearPrinciples();
+    let insertedCount = 0;
+    if (principles.length > 0) {
+      const result = await store.savePrinciples(principles);
+      insertedCount = result.insertedCount;
+    }
+
+    let confirmed = 0, tentative = 0;
+    for (const p of principles) {
+      if (p.status === 'confirmed') confirmed++;
+      else if (p.status === 'tentative') tentative++;
+    }
+
+    res.json({
+      extracted: principles.length,
+      confirmed,
+      tentative,
+      deleted_previous: deleted,
+      from_deltas: allDeltas.length,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

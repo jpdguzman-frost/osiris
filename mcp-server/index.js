@@ -341,7 +341,11 @@ server.tool(
 
     for (const [key, benchmark, label] of pairs) {
       const yours = design_scores[key];
-      if (yours === undefined || benchmark === null || benchmark === undefined) continue;
+      if (yours === undefined) continue;
+      if (benchmark === null || benchmark === undefined) {
+        comparisons.push({ metric: label, yours, benchmark: null, delta: null, status: 'NO_BENCHMARK' });
+        continue;
+      }
       const delta = +(yours - benchmark).toFixed(1);
       const status = delta >= 0 ? 'MEETS' : Math.abs(delta) > 1 ? 'BELOW' : 'CLOSE';
       comparisons.push({ metric: label, yours, benchmark: +benchmark.toFixed(1), delta, status });
@@ -440,6 +444,76 @@ server.tool(
   async ({ industry }) => {
     const data = await apiGet('/api/brands', { industry });
     return textResult({ brands: data.brands || [] });
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SLICE 6 — Refinement Layer
+// ═══════════════════════════════════════════════════════════════════════════
+
+server.tool(
+  'osiris_get_refinement_context',
+  'Get everything needed to refine a SOM to polish-grade quality. Returns the raw SOM, screen context (type, mood, layout, scores), matched before/after exemplar deltas from the refinement library, accumulated refinement principles, and the full Phosphor icon name list for icon resolution. Use this before refining a SOM — the exemplars show what similar screens changed, the principles encode learned patterns.',
+  {
+    screen_id: z.string().describe('Screen ID with an existing SOM to refine'),
+    max_exemplars: z.coerce.number().default(3).describe('Maximum number of exemplar deltas to return (1-5)'),
+  },
+  async ({ screen_id, max_exemplars }) => {
+    const data = await apiGet(`/api/refinement/context/${screen_id}`, { max_exemplars });
+    return textResult(data);
+  }
+);
+
+server.tool(
+  'osiris_capture_delta',
+  'Capture a before/after SOM refinement pair for the learning library. Call this after a designer refines a Rex-built screen in Figma. The system auto-computes node-level diffs, structural signature, and screen context. Each captured delta teaches the refinement layer — future similar screens will benefit from this correction.',
+  {
+    source_screen_id: z.string().describe('Screen ID this refinement is for'),
+    before_som: z.any().describe('The SOM before refinement (as Osiris produced it)'),
+    after_som: z.any().describe('The SOM after designer refinement (extracted from Figma via Rex)'),
+  },
+  async ({ source_screen_id, before_som, after_som }) => {
+    const data = await apiPost('/api/refinement/deltas', { source_screen_id, before_som, after_som });
+    return textResult(data);
+  }
+);
+
+server.tool(
+  'osiris_list_deltas',
+  'List captured refinement deltas (before/after SOM pairs) from the learning library. Filter by screen type or design mood to see what corrections have been made for similar screens.',
+  {
+    screen_type: z.string().optional().describe('Filter by screen type (e.g., confirmation, home, dashboard)'),
+    design_mood: z.string().optional().describe('Filter by design mood (e.g., calm, energetic, premium)'),
+    limit: z.coerce.number().default(20).describe('Maximum results to return'),
+  },
+  async ({ screen_type, design_mood, limit }) => {
+    const data = await apiGet('/api/refinement/deltas', { screen_type, design_mood, limit });
+    return textResult(data);
+  }
+);
+
+server.tool(
+  'osiris_get_principles',
+  'Get accumulated refinement principles — patterns learned from multiple corrections. Confirmed principles have strong evidence (80%+ consistency across 3+ deltas). Tentative principles are emerging patterns. Principles are scoped by screen type and role.',
+  {
+    status: z.enum(['confirmed', 'tentative', 'all']).default('all').describe('Filter by principle status'),
+    screen_type: z.string().optional().describe('Filter by screen type'),
+  },
+  async ({ status, screen_type }) => {
+    const data = await apiGet('/api/refinement/principles', { status, screen_type });
+    return textResult(data);
+  }
+);
+
+server.tool(
+  'osiris_extract_principles',
+  'Trigger principle extraction from accumulated refinement deltas. Analyzes all captured before/after pairs, groups changes by (screen_type, role, property), and identifies consistent patterns. Run this after capturing 5+ deltas to build up the principles library.',
+  {
+    min_evidence: z.coerce.number().default(3).describe('Minimum number of deltas supporting a principle (default 3)'),
+  },
+  async ({ min_evidence }) => {
+    const data = await apiPost('/api/refinement/principles/extract', { min_evidence });
+    return textResult(data);
   }
 );
 
