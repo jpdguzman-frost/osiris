@@ -50,6 +50,7 @@ export class Store {
   async ensureIndexes() {
     const screens = this.db.collection('screens');
     const buckets = this.db.collection('buckets');
+    const templates = this.db.collection('reference_templates');
 
     await Promise.all([
       // Identity
@@ -79,6 +80,12 @@ export class Store {
       // Buckets
       buckets.createIndex({ name: 1 }, { unique: true }),
       buckets.createIndex({ updated_at: -1 }),
+
+      // Reference Templates
+      templates.createIndex({ brandId: 1, screenType: 1, supersededBy: 1, generation: -1 }),
+      templates.createIndex({ brandId: 1, tags: 1 }),
+      templates.createIndex({ supersedes: 1 }),
+      templates.createIndex({ usageCount: -1 }),
     ]);
 
     logDim('Indexes ensured');
@@ -318,6 +325,181 @@ export class Store {
     return this.db.collection('buckets').updateOne(
       { _id: new ObjectId(id) },
       { $set: { description: metadata.description, metadata, updated_at: new Date() } },
+    );
+  }
+
+  // ── Reference Template CRUD ─────────────────────────────────────────
+
+  async saveReferenceTemplate(data) {
+    await this.connect();
+    const col = this.db.collection('reference_templates');
+    const now = new Date();
+
+    let generation = 1;
+    if (data.supersedes) {
+      const previous = await col.findOne({ _id: new ObjectId(data.supersedes) });
+      if (previous) {
+        generation = (previous.generation || 1) + 1;
+      }
+    }
+
+    const doc = {
+      brandId: data.brandId,
+      version: data.version || 1,
+      screenType: data.screenType,
+      screenSubtype: data.screenSubtype || null,
+      tags: data.tags || [],
+      mood: data.mood || null,
+      density: data.density || null,
+      platform: data.platform || null,
+      som: data.som,
+      referenceFrame: data.referenceFrame || null,
+      slots: data.slots || [],
+      structure: data.structure || null,
+      sourceScreenId: data.sourceScreenId || null,
+      refinedFromNodeId: data.refinedFromNodeId || null,
+      supersedes: data.supersedes ? new ObjectId(data.supersedes) : null,
+      supersededBy: null,
+      generation,
+      usageCount: 0,
+      lastUsedAt: null,
+      deprecated: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const result = await col.insertOne(doc);
+
+    // Update the old template's supersededBy pointer
+    if (data.supersedes) {
+      await col.updateOne(
+        { _id: new ObjectId(data.supersedes) },
+        { $set: { supersededBy: result.insertedId, updatedAt: now } },
+      );
+    }
+
+    return { templateId: result.insertedId, version: doc.version, generation };
+  }
+
+  async getReferenceTemplate(id) {
+    await this.connect();
+    return this.db.collection('reference_templates').findOne({ _id: new ObjectId(id) });
+  }
+
+  async findReferenceTemplates(screenType, options = {}) {
+    await this.connect();
+    const col = this.db.collection('reference_templates');
+
+    const filter = {
+      supersededBy: null,
+      deprecated: { $ne: true },
+    };
+    if (screenType) filter.screenType = screenType;
+
+    const candidates = await col.find(filter).toArray();
+
+    const limit = options.limit || 5;
+    const now = new Date();
+
+    const scored = candidates.map(t => {
+      // screenType match (always 1 since we filter by it, but handles edge cases)
+      const screenTypeScore = t.screenType === screenType ? 1 : 0;
+
+      // brandId match
+      const brandScore = (options.brandId && t.brandId === options.brandId) ? 1 : 0;
+
+      // Tag Jaccard similarity
+      let tagScore = 0;
+      if (options.tags && options.tags.length > 0 && t.tags && t.tags.length > 0) {
+        const setA = new Set(options.tags);
+        const setB = new Set(t.tags);
+        const intersection = [...setA].filter(x => setB.has(x)).length;
+        const union = new Set([...setA, ...setB]).size;
+        tagScore = union > 0 ? intersection / union : 0;
+      }
+
+      // Mood match
+      const moodScore = (options.mood && t.mood === options.mood) ? 1 : 0;
+
+      // Recency
+      const daysSince = (now - new Date(t.updatedAt)) / (1000 * 60 * 60 * 24);
+      const recencyScore = 1 - Math.min(daysSince, 180) / 180;
+
+      // Usage
+      const usageScore = Math.min(t.usageCount || 0, 20) / 20;
+
+      // Generation
+      const generationScore = Math.min(t.generation || 1, 5) / 5;
+
+      const score =
+        0.30 * screenTypeScore +
+        0.20 * brandScore +
+        0.15 * tagScore +
+        0.10 * moodScore +
+        0.10 * recencyScore +
+        0.10 * usageScore +
+        0.05 * generationScore;
+
+      return { ...t, _score: +score.toFixed(4) };
+    });
+
+    scored.sort((a, b) => b._score - a._score);
+    const results = scored.slice(0, limit);
+
+    // Increment usageCount and lastUsedAt on the top result
+    if (results.length > 0) {
+      await col.updateOne(
+        { _id: results[0]._id },
+        { $inc: { usageCount: 1 }, $set: { lastUsedAt: now } },
+      );
+    }
+
+    return results;
+  }
+
+  async listReferenceTemplates(options = {}) {
+    await this.connect();
+    const col = this.db.collection('reference_templates');
+
+    const filter = {};
+    if (options.brandId) filter.brandId = options.brandId;
+    if (options.screenType) filter.screenType = options.screenType;
+    const headsOnly = options.headsOnly !== undefined ? options.headsOnly : true;
+    if (headsOnly) filter.supersededBy = null;
+
+    return col.find(filter)
+      .project({
+        brandId: 1,
+        version: 1,
+        screenType: 1,
+        screenSubtype: 1,
+        tags: 1,
+        mood: 1,
+        density: 1,
+        platform: 1,
+        referenceFrame: 1,
+        slots: 1,
+        structure: 1,
+        sourceScreenId: 1,
+        refinedFromNodeId: 1,
+        supersedes: 1,
+        supersededBy: 1,
+        generation: 1,
+        usageCount: 1,
+        lastUsedAt: 1,
+        deprecated: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .sort({ updatedAt: -1 })
+      .toArray();
+  }
+
+  async deprecateReferenceTemplate(id, reason) {
+    await this.connect();
+    return this.db.collection('reference_templates').updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { deprecated: true, deprecatedReason: reason, deprecatedAt: new Date(), updatedAt: new Date() } },
     );
   }
 

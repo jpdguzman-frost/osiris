@@ -44,6 +44,14 @@ function apiPost(path, body) {
   return apiFetch(path, { body });
 }
 
+function apiPut(path, body) {
+  return apiFetch(path, { method: 'PUT', body });
+}
+
+function apiPatch(path, body) {
+  return apiFetch(path, { method: 'PATCH', body });
+}
+
 function textResult(content) {
   return { content: [{ type: 'text', text: typeof content === 'string' ? content : JSON.stringify(content, null, 2) }] };
 }
@@ -440,6 +448,117 @@ server.tool(
   async ({ industry }) => {
     const data = await apiGet('/api/brands', { industry });
     return textResult({ brands: data.brands || [] });
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SLICE 6 — Reference Templates
+// ═══════════════════════════════════════════════════════════════════════════
+
+server.tool(
+  'osiris_save_reference_template',
+  'Save a refined SOM as a reusable reference template. When a designer refines a Rex-built screen, the refined SOM is saved so it can be reused for future similar screens — capturing 100% of the designer\'s decisions. Validates and upgrades the SOM before storage.',
+  {
+    brandId: z.string().describe('Brand slug (e.g. "revolut", "nubank")'),
+    screenType: z.string().describe('Screen type (e.g. "payment", "dashboard", "onboarding")'),
+    som: z.object({
+      referenceFrame: z.object({ width: z.number(), height: z.number() }).optional(),
+      screenType: z.string().optional(),
+      platform: z.string().optional(),
+      version: z.number().optional(),
+      root: z.any(),
+    }).describe('The full SOM JSON object with a root node tree'),
+    screenSubtype: z.string().optional().describe('More specific screen subtype (e.g. "payment-numpad")'),
+    tags: z.array(z.string()).optional().describe('Tags for matching (e.g. ["dark-mode", "numpad"])'),
+    mood: z.string().optional().describe('Design mood (e.g. "premium", "energetic")'),
+    density: z.string().optional().describe('Content density (e.g. "normal", "dense", "sparse")'),
+    platform: z.string().optional().describe('Target platform (e.g. "mobile", "desktop", "tablet")'),
+    referenceFrame: z.object({ width: z.number(), height: z.number() }).optional().describe('Original frame dimensions'),
+    slots: z.array(z.object({
+      slotId: z.string(),
+      nodeId: z.string(),
+      role: z.string(),
+      type: z.string(),
+      defaultValue: z.any().optional(),
+    })).optional().describe('Customizable slots in the template'),
+    structure: z.object({
+      sectionCount: z.number().optional(),
+      hasCTA: z.boolean().optional(),
+      hasHero: z.boolean().optional(),
+      hasBottomNav: z.boolean().optional(),
+      cardCount: z.number().optional(),
+    }).optional().describe('Structural summary of the template'),
+    sourceScreenId: z.string().optional().describe('Osiris screen ID this template was derived from'),
+    refinedFromNodeId: z.string().optional().describe('Figma node ID of the refined frame'),
+    supersedes: z.string().optional().describe('Template ID this supersedes (creates a new generation)'),
+    version: z.number().optional().describe('Template version number'),
+  },
+  async (params) => {
+    const data = await apiPut('/api/reference-templates', params);
+    return textResult(data);
+  }
+);
+
+server.tool(
+  'osiris_find_template',
+  'Find the best matching reference template for a screen type. Scores templates using a weighted algorithm considering screen type, brand affinity, tag similarity, mood, recency, usage, and generation. Returns ranked results — the top match is automatically marked as used.',
+  {
+    screenType: z.string().describe('Screen type to find templates for (e.g. "payment", "dashboard")'),
+    brandId: z.string().optional().describe('Brand slug — same-brand templates get a score boost but cross-brand still returned'),
+    tags: z.array(z.string()).optional().describe('Tags to match against (e.g. ["dark-mode", "numpad"])'),
+    mood: z.string().optional().describe('Design mood to match (e.g. "premium")'),
+    platform: z.string().optional().describe('Target platform (e.g. "mobile")'),
+    limit: z.coerce.number().min(1).max(20).default(5).describe('Max number of templates to return (default 5)'),
+  },
+  async ({ screenType, brandId, tags, mood, platform, limit }) => {
+    const data = await apiPost('/api/reference-templates/find', { screenType, brandId, tags, mood, platform, limit });
+    return textResult(data);
+  }
+);
+
+server.tool(
+  'osiris_get_template',
+  'Get a reference template by ID. Returns the full template including the SOM tree. Optionally includes the supersession lineage chain (all previous generations).',
+  {
+    template_id: z.string().describe('Template ID'),
+    includeLineage: z.boolean().default(false).describe('Include supersession lineage chain (all previous generations)'),
+  },
+  async ({ template_id, includeLineage }) => {
+    const params = {};
+    if (includeLineage) params.includeLineage = 'true';
+    const data = await apiGet(`/api/reference-templates/${template_id}`, params);
+    return textResult(data);
+  }
+);
+
+server.tool(
+  'osiris_list_templates',
+  'List reference templates with summaries (SOM body excluded for performance). Filter by brand, screen type, or show all generations.',
+  {
+    brandId: z.string().optional().describe('Filter by brand slug'),
+    screenType: z.string().optional().describe('Filter by screen type'),
+    headsOnly: z.boolean().default(true).describe('Only show latest generation per lineage (default true)'),
+  },
+  async ({ brandId, screenType, headsOnly }) => {
+    const params = {};
+    if (brandId) params.brandId = brandId;
+    if (screenType) params.screenType = screenType;
+    if (headsOnly !== undefined) params.headsOnly = String(headsOnly);
+    const data = await apiGet('/api/reference-templates', params);
+    return textResult(data);
+  }
+);
+
+server.tool(
+  'osiris_deprecate_template',
+  'Soft-deprecate a reference template. Deprecated templates are excluded from find results but remain accessible by ID for lineage tracking.',
+  {
+    template_id: z.string().describe('Template ID to deprecate'),
+    reason: z.string().optional().describe('Reason for deprecation'),
+  },
+  async ({ template_id, reason }) => {
+    const data = await apiPatch(`/api/reference-templates/${template_id}/deprecate`, { reason });
+    return textResult(data);
   }
 );
 
