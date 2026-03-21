@@ -217,6 +217,131 @@ export function extractPatterns(classifiedRecords, existingPatterns = []) {
   return patterns;
 }
 
+// ─── Template Pattern Extraction ────────────────────────────────────────────
+
+/** Style properties worth extracting from SOM nodes (skip positional). */
+const TEMPLATE_PROPERTIES = new Set([
+  'fill', 'cornerRadius', 'opacity', 'strokeWeight', 'clipsContent',
+  'gap', 'padding',
+  'fontSize', 'fontFamily', 'fontWeight', 'textAlign', 'letterSpacing', 'lineHeight',
+]);
+
+/**
+ * Extract cross-brand patterns from reference template SOMs.
+ * Walks each template's node tree, groups style values by (role, property),
+ * and produces patterns with brandId: null (universal designer preferences).
+ */
+export function extractPatternsFromTemplates(templates, existingPatterns = []) {
+  // Group values by (role, property) across all templates
+  const groups = new Map();
+
+  for (const template of templates) {
+    if (!template.som?.root) continue;
+    walkSomNode(template.som.root, groups, template._id);
+  }
+
+  // Build existing lookup for merging
+  const existingMap = new Map();
+  for (const p of existingPatterns) {
+    if (p.brandId === null) {
+      existingMap.set(p.role + ':' + p.property, p);
+    }
+  }
+
+  // Build pattern objects
+  const patterns = [];
+  for (const [key, group] of groups) {
+    if (group.values.length < 2) continue; // Need at least 2 occurrences across templates
+
+    const existing = existingMap.get(key);
+    const allValues = existing ? [...existing.values, ...group.values] : group.values;
+
+    const modeValue = computeMode(allValues);
+    const consistency = computeConsistency(allValues, modeValue);
+    const direction = computeDirection(allValues);
+    const occurrences = allValues.length;
+    const status = computeStatus(occurrences, consistency);
+
+    patterns.push({
+      role: group.role,
+      property: group.property,
+      brandId: null,
+      screenType: null,
+      values: allValues,
+      modeValue,
+      consistency,
+      direction,
+      occurrences,
+      status,
+      source: 'template',
+      sourceRecordIds: [...new Set(group.templateIds)],
+      firstSeenAt: existing?.firstSeenAt || new Date(),
+      lastSeenAt: new Date(),
+    });
+  }
+
+  return patterns;
+}
+
+/** Recursively walk a SOM node tree, extracting style properties by role. */
+function walkSomNode(node, groups, templateId) {
+  if (!node.role || node.role === 'screen' || node.role === 'unknown') {
+    // Skip root screen and unknown roles, but still walk children
+    if (node.children) {
+      for (const child of node.children) walkSomNode(child, groups, templateId);
+    }
+    return;
+  }
+
+  const style = node.style || {};
+
+  for (const prop of TEMPLATE_PROPERTIES) {
+    let value = style[prop];
+    if (value === undefined || value === null) continue;
+
+    // Expand padding object to individual sides
+    if (prop === 'padding') {
+      if (typeof value === 'number') {
+        addToGroup(groups, node.role, 'paddingTop', value, templateId);
+        addToGroup(groups, node.role, 'paddingRight', value, templateId);
+        addToGroup(groups, node.role, 'paddingBottom', value, templateId);
+        addToGroup(groups, node.role, 'paddingLeft', value, templateId);
+      } else if (typeof value === 'object') {
+        if (value.top !== undefined) addToGroup(groups, node.role, 'paddingTop', value.top, templateId);
+        if (value.right !== undefined) addToGroup(groups, node.role, 'paddingRight', value.right, templateId);
+        if (value.bottom !== undefined) addToGroup(groups, node.role, 'paddingBottom', value.bottom, templateId);
+        if (value.left !== undefined) addToGroup(groups, node.role, 'paddingLeft', value.left, templateId);
+      }
+      continue;
+    }
+
+    // Normalize letterSpacing/lineHeight objects to just the value
+    if ((prop === 'letterSpacing' || prop === 'lineHeight') && typeof value === 'object') {
+      value = value.value;
+      if (value === undefined || value === 0) continue;
+    }
+
+    addToGroup(groups, node.role, prop, value, templateId);
+  }
+
+  // Walk children
+  if (node.children) {
+    for (const child of node.children) walkSomNode(child, groups, templateId);
+  }
+}
+
+function addToGroup(groups, role, property, value, templateId) {
+  const key = role + ':' + property;
+  if (!groups.has(key)) {
+    groups.set(key, { role, property, values: [], templateIds: [] });
+  }
+  const group = groups.get(key);
+  group.values.push(value);
+  if (!group.templateIds.includes(String(templateId))) {
+    group.templateIds.push(String(templateId));
+  }
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function classify(change, classification, reason) {

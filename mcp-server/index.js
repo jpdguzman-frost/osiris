@@ -606,6 +606,16 @@ server.tool(
   }
 );
 
+server.tool(
+  'osiris_extract_template_patterns',
+  'Extract cross-brand designer style patterns from all reference templates. Walks each template SOM, groups style values by role across all brands, and produces universal patterns (padding, fonts, corner radii, spacing). Run this after saving new refined templates to update the pattern library.',
+  {},
+  async () => {
+    const data = await apiPost('/api/property-patterns/extract-from-templates', {});
+    return textResult(data);
+  }
+);
+
 // ─── Start ──────────────────────────────────────────────────────────────────
 
 const transport = new StdioServerTransport();

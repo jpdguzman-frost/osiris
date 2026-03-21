@@ -458,32 +458,21 @@ export class Store {
     const headsOnly = options.headsOnly !== undefined ? options.headsOnly : true;
     if (headsOnly) filter.supersededBy = null;
 
-    return col.find(filter)
-      .project({
-        brandId: 1,
-        version: 1,
-        screenType: 1,
-        screenSubtype: 1,
-        tags: 1,
-        mood: 1,
-        density: 1,
-        platform: 1,
-        referenceFrame: 1,
-        slots: 1,
-        structure: 1,
-        sourceScreenId: 1,
-        refinedFromNodeId: 1,
-        supersedes: 1,
-        supersededBy: 1,
-        generation: 1,
-        usageCount: 1,
-        lastUsedAt: 1,
-        deprecated: 1,
-        createdAt: 1,
-        updatedAt: 1,
-      })
-      .sort({ updatedAt: -1 })
-      .toArray();
+    const query = col.find(filter);
+
+    // Exclude SOM body by default for performance (it's huge)
+    if (!options.includeSom) {
+      query.project({
+        brandId: 1, version: 1, screenType: 1, screenSubtype: 1,
+        tags: 1, mood: 1, density: 1, platform: 1, referenceFrame: 1,
+        slots: 1, structure: 1, sourceScreenId: 1, refinedFromNodeId: 1,
+        supersedes: 1, supersededBy: 1, generation: 1,
+        usageCount: 1, lastUsedAt: 1, deprecated: 1,
+        createdAt: 1, updatedAt: 1,
+      });
+    }
+
+    return query.sort({ updatedAt: -1 }).toArray();
   }
 
   async deprecateReferenceTemplate(id, reason) {
@@ -555,7 +544,8 @@ export class Store {
   async getPatterns(query = {}) {
     await this.connect();
     const filter = {};
-    if (query.brandId) filter.brandId = query.brandId;
+    if (query.brandId === 'null' || query.brandId === null) filter.brandId = null;
+    else if (query.brandId) filter.brandId = query.brandId;
     if (query.screenType) filter.screenType = query.screenType;
     if (query.role) filter.role = query.role;
     if (query.property) filter.property = query.property;

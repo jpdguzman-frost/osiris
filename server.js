@@ -11,7 +11,7 @@ import { setupAuth } from './src/auth.js';
 import { validateSOM, prepareSOM, scaleSOM } from './src/som.js';
 import { upgradeToV2, assignRolesTree } from './src/som-roles.js';
 import { mergeSOM } from './src/som-merge.js';
-import { classifyChanges, extractPatterns } from './src/refinement-filter.js';
+import { classifyChanges, extractPatterns, extractPatternsFromTemplates } from './src/refinement-filter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -1424,6 +1424,31 @@ router.post('/api/property-patterns/extract', async (req, res) => {
       : { upserted: 0, updated: 0, total: 0 };
 
     res.json({ ok: true, summary, patterns: result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/api/property-patterns/extract-from-templates', async (req, res) => {
+  try {
+    // Fetch all non-deprecated templates with SOMs
+    const templates = await store.listReferenceTemplates({ headsOnly: true, includeSom: true });
+    if (templates.length === 0) {
+      return res.json({ ok: true, patterns: { upserted: 0, updated: 0, total: 0 }, templateCount: 0 });
+    }
+
+    // Fetch existing cross-brand patterns for merging
+    const existingPatterns = await store.getPatterns({ brandId: 'null' });
+
+    // Extract patterns from template SOMs
+    const patterns = extractPatternsFromTemplates(templates, existingPatterns);
+
+    // Upsert patterns
+    const result = patterns.length > 0
+      ? await store.bulkUpsertPatterns(patterns)
+      : { upserted: 0, updated: 0, total: 0 };
+
+    res.json({ ok: true, patterns: result, templateCount: templates.length, extractedCount: patterns.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
