@@ -12,6 +12,7 @@ import { validateSOM, prepareSOM, scaleSOM } from './src/som.js';
 import { upgradeToV2, assignRolesTree } from './src/som-roles.js';
 import { mergeSOM } from './src/som-merge.js';
 import { classifyChanges, extractPatterns, extractPatternsFromTemplates, extractStyleGuide } from './src/refinement-filter.js';
+import { createMcpRouter } from './src/mcp-endpoint.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -1522,6 +1523,31 @@ router.get('/', requireAuth, (req, res) => {
 router.get('/{*path}', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
 });
+
+// ─── Mount MCP endpoint (remote Streamable HTTP transport) ──────────────────
+
+app.use(
+  (BASE_PATH || '') + '/mcp',
+  express.json(),
+  createMcpRouter({
+    store,
+    findSimilar,
+    WEIGHT_PRESETS,
+    validateAndPrepareSOM,
+    upgradeToV2,
+    assignRolesTree,
+    prepareSOM: (som) => prepareSOM(som),
+    mergeSOM,
+    scaleSOM,
+    classifyChanges,
+    extractPatterns,
+    extractPatternsFromTemplates,
+    extractStyleGuide,
+    screenUrl,
+    PATHS,
+    brandDisplayName,
+  })
+);
 
 // ─── Mount router at BASE_PATH ──────────────────────────────────────────────
 

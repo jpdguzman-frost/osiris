@@ -29,7 +29,7 @@ ${SSH_CMD} "mkdir -p ${DEST_DIR}/data/screens"
 # ─── Step 1: Sync app code (fast, small files) ──────────────────────────────
 
 echo -e "${YELLOW}📦 Syncing app code to server...${NC}"
-rsync -avz --progress \
+rsync -az \
   -e "ssh -q -i ${SSH_KEY} -p ${DEST_PORT}" \
   --include='server.js' \
   --include='guide.html' \
@@ -62,7 +62,7 @@ read -p "$(echo -e ${YELLOW}"📸 Sync screen data (data/screens/)? This can be 
 
 if [[ "$SYNC_SCREENS" =~ ^[Yy]$ ]]; then
     echo -e "${YELLOW}📸 Syncing screen data...${NC}"
-    rsync -avz --progress \
+    rsync -az \
       -e "ssh -q -i ${SSH_KEY} -p ${DEST_PORT}" \
       "${SRC_DIR}/data/screens/" ${DEST_USER}@${DEST_HOST}:${DEST_DIR}/data/screens/
 
@@ -84,7 +84,7 @@ read -p "$(echo -e ${YELLOW}"📊 Sync analysis data (data/analysis/)? [y/N]: "$
 if [[ "$SYNC_ANALYSIS" =~ ^[Yy]$ ]]; then
     echo -e "${YELLOW}📊 Syncing analysis data...${NC}"
     ${SSH_CMD} "mkdir -p ${DEST_DIR}/data/analysis"
-    rsync -avz --progress \
+    rsync -az \
       -e "ssh -q -i ${SSH_KEY} -p ${DEST_PORT}" \
       "${SRC_DIR}/data/analysis/" ${DEST_USER}@${DEST_HOST}:${DEST_DIR}/data/analysis/
 
